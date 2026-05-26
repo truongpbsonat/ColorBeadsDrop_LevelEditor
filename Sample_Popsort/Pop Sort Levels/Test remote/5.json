@@ -1,0 +1,292 @@
+{
+    "levelName": "Level_5",
+    "board": 0,
+    "gridRows": 4,
+    "gridCols": 3,
+    "gridCells": [
+        {
+            "isActive": true,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                4
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                4
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                6
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                6
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        }
+    ],
+    "lane1Data": [
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        }
+    ],
+    "lane2Data": [
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        }
+    ],
+    "lane3Data": [
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 4,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        }
+    ],
+    "lane4Data": [
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        }
+    ]
+}

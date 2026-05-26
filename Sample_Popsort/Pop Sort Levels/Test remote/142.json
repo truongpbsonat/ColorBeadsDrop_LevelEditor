@@ -1,0 +1,535 @@
+{
+    "levelName": "Level_142",
+    "board": 0,
+    "gridRows": 5,
+    "gridCols": 5,
+    "gridCells": [
+        {
+            "isActive": true,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                5
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                5
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                2
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                2
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                2
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                1
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                2
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                5
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                5
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0
+        }
+    ],
+    "lane1Data": [
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        }
+    ],
+    "lane2Data": [
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        }
+    ],
+    "lane3Data": [
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        }
+    ],
+    "lane4Data": [
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 0,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 5,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 2,
+            "type": 0
+        },
+        {
+            "colorId": 1,
+            "type": 0
+        }
+    ]
+}

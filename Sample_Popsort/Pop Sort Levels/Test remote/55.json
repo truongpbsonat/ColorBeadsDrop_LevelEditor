@@ -1,0 +1,348 @@
+{
+    "levelName": "Level_55",
+    "gridRows": 6,
+    "gridCols": 3,
+    "board": 0,
+    "gridCells": [
+        {
+            "isActive": true,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": true,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3,
+                3
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 1
+        },
+        {
+            "isActive": false,
+            "colorList": [
+                0
+            ],
+            "isHidden": false,
+            "unlockDirection": 0,
+            "isTunnel": false,
+            "isFrozen": false,
+            "frozenCount": 0,
+            "isArchor": 0
+        }
+    ],
+    "lane1Data": [
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        }
+    ],
+    "lane2Data": [
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 3,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        },
+        {
+            "colorId": 6,
+            "type": 0
+        }
+    ]
+}

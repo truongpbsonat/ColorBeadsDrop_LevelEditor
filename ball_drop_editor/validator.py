@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from typing import Any, Dict, List, Tuple
+
+from .constants import BALL_COLORS, DIRECTIONS, RUNTIME_ENTITY_TYPES
+
+LEGACY_GRID_CELL_FIELDS = {"type", "shooter", "wall", "tunnel", "portal", "generator", "blocker"}
+SUPPORTED_MODIFIER_TYPES = {"Ice", "Locked", "Hidden"}
+
+class LevelValidator:
+    def validate(self, level: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        grid = level.get("grid", {})
+        rows = grid.get("rows", 0)
+        cols = grid.get("columns", 0)
+        if rows <= 0 or cols <= 0:
+            errors.append("Grid rows/columns phải > 0.")
+
+        shooter_ids = set()
+        color_capacity = defaultdict(int)
+        blocked = [[False for _ in range(max(1, cols))] for _ in range(max(1, rows))]
+        has_initial_active_shooter = False
+        wall_count = 0
+
+        for cell in grid.get("cells", []):
+            r, c = cell.get("row"), cell.get("column")
+            for legacy_field in LEGACY_GRID_CELL_FIELDS:
+                if legacy_field in cell:
+                    errors.append(f"GridCell ({r},{c}) dùng legacy field '{legacy_field}'. Hãy đặt content trong entity.type.")
+
+            if not (0 <= r < rows and 0 <= c < cols):
+                errors.append(f"Cell ngoài grid: row={r}, column={c}.")
+                continue
+
+            entity = cell.get("entity")
+            if entity is None:
+                continue
+            etype = entity.get("type")
+
+            if etype not in RUNTIME_ENTITY_TYPES:
+                errors.append(f"GridEntity type không hỗ trợ hoặc thiếu: {etype} at ({r},{c}).")
+            if entity.get("blocksPath", True):
+                blocked[r][c] = True
+
+            if etype == "Shooter":
+                shooter = entity.get("shooter")
+                if not shooter:
+                    errors.append(f"Shooter entity thiếu ShooterData at ({r},{c}).")
+                    continue
+                sid = shooter.get("shooterId")
+                if not sid:
+                    errors.append(f"Shooter thiếu shooterId at ({r},{c}).")
+                elif sid in shooter_ids:
+                    errors.append(f"Duplicate shooterId: {sid}.")
+                else:
+                    shooter_ids.add(sid)
+                color = shooter.get("colorId")
+                cap = shooter.get("capacity", 0)
+                if color not in BALL_COLORS or color == "None":
+                    errors.append(f"Shooter {sid} có colorId không hợp lệ: {color}.")
+                if cap <= 0:
+                    errors.append(f"Shooter {sid} capacity phải > 0.")
+                color_capacity[color] += max(0, cap)
+                self._validate_modifiers(shooter, sid, errors)
+
+            if etype == "Wall":
+                wall_count += 1
+
+            if etype == "Tunnel":
+                direction = entity.get("outputDirection")
+                if direction not in DIRECTIONS:
+                    errors.append(f"Tunnel {entity.get('entityId')} outputDirection không hợp lệ: {direction}.")
+                else:
+                    output = self._offset(r, c, direction)
+                    if not (0 <= output[0] < rows and 0 <= output[1] < cols):
+                        errors.append(f"Tunnel {entity.get('entityId')} output cell {output} ngoài grid.")
+                    else:
+                        output_cell = self._find_cell(grid, output[0], output[1])
+                        output_entity = output_cell.get("entity") if output_cell else None
+                        if output_entity and output_entity.get("type") != "Shooter":
+                            warnings.append(f"Tunnel {entity.get('entityId')} output cell {output} đang bị chặn bởi {output_entity.get('type')}.")
+                q = entity.get("shooterQueue", [])
+                if not q:
+                    warnings.append(f"Tunnel {entity.get('entityId')} không có shooterQueue.")
+                for shooter in q:
+                    sid = shooter.get("shooterId")
+                    if sid in shooter_ids:
+                        errors.append(f"Duplicate shooterId trong tunnel: {sid}.")
+                    shooter_ids.add(sid)
+                    color = shooter.get("colorId")
+                    cap = shooter.get("capacity", 0)
+                    if color not in BALL_COLORS or color == "None":
+                        errors.append(f"Tunnel shooter {sid} có colorId không hợp lệ: {color}.")
+                    if cap <= 0:
+                        errors.append(f"Tunnel shooter {sid} capacity phải > 0.")
+                    color_capacity[color] += max(0, cap)
+                    self._validate_modifiers(shooter, sid, errors)
+
+        self._validate_obstacles(grid, blocked, errors)
+        self._validate_shooter_groups(grid, shooter_ids, errors)
+
+        if level.get("level", 0) > 5 and wall_count == 0:
+            warnings.append("No wall in a higher level.")
+        for cell in grid.get("cells", []):
+            entity = cell.get("entity")
+            if entity and entity.get("type") == "Shooter" and self._has_path_to_top(grid, cell.get("row"), cell.get("column"), blocked):
+                has_initial_active_shooter = True
+                break
+
+        gate_system = level.get("gateSystem", {})
+        gate_count = gate_system.get("gateCount", 0)
+        max_visible = gate_system.get("maxVisibleTrayPerGate", 0)
+        gates = gate_system.get("gates", [])
+        if gate_count <= 0:
+            errors.append("gateSystem.gateCount phải > 0.")
+        if max_visible <= 0:
+            errors.append("gateSystem.maxVisibleTrayPerGate phải > 0.")
+        if len(gates) != gate_count:
+            errors.append(f"gates.Count phải bằng gateCount. Current={len(gates)}, gateCount={gate_count}.")
+
+        seen_gate = set()
+        color_need = defaultdict(int)
+        for gate in gates:
+            gi = gate.get("gateIndex")
+            if gi in seen_gate:
+                errors.append(f"Duplicate gateIndex: {gi}.")
+            seen_gate.add(gi)
+            if not isinstance(gi, int) or gi < 0 or gi >= gate_count:
+                errors.append(f"gateIndex ngoài phạm vi: {gi}.")
+            if not gate.get("trayQueue"):
+                warnings.append(f"Gate {gi} không có trayQueue.")
+            for tray in gate.get("trayQueue", []):
+                layers = tray.get("layers", [])
+                if not layers:
+                    errors.append(f"Tray {tray.get('trayId')} không có layers.")
+                for layer in layers:
+                    color = layer.get("colorId")
+                    required = layer.get("requiredCount", 0)
+                    if color not in BALL_COLORS or color == "None":
+                        errors.append(f"Tray {tray.get('trayId')} có layer color không hợp lệ: {color}.")
+                    if required <= 0:
+                        errors.append(f"Tray {tray.get('trayId')} layer requiredCount phải > 0.")
+                    color_need[color] += max(0, required)
+
+        for color in sorted(set(color_need) | set(color_capacity)):
+            if color not in BALL_COLORS or color == "None":
+                continue
+            need = color_need.get(color, 0)
+            cap = color_capacity.get(color, 0)
+            delta = cap - need
+            if cap < need:
+                missing = need - cap
+                shooter_count = (missing + 8) // 9
+                tray_count = (missing + 2) // 3
+                errors.append(
+                    f"Không đủ ball màu {color}: shooterCapacity={cap}, trayRequired={need}, "
+                    f"delta={delta:+d}. Gợi ý: thêm {missing} capacity shooter màu {color} "
+                    f"(khoảng {shooter_count} shooter thường capacity 9) hoặc giảm {missing} trayRequired "
+                    f"(khoảng {tray_count} tray/layer capacity 3)."
+                )
+            elif cap > need:
+                extra = cap - need
+                shooter_count = (extra + 8) // 9
+                tray_count = (extra + 2) // 3
+                warnings.append(
+                    f"Dư ball màu {color}: shooterCapacity={cap}, trayRequired={need}, "
+                    f"delta={delta:+d}. Gợi ý: giảm {extra} capacity shooter màu {color} "
+                    f"(khoảng {shooter_count} shooter thường capacity 9) hoặc thêm {extra} trayRequired "
+                    f"(khoảng {tray_count} tray/layer capacity 3)."
+                )
+
+        if not has_initial_active_shooter:
+            warnings.append("No shooter active initially.")
+
+        if not errors and not warnings:
+            warnings.append("OK: Không phát hiện lỗi cơ bản.")
+
+        return errors, warnings
+
+    def _validate_modifiers(self, shooter: Dict[str, Any], shooter_id: str, errors: List[str]) -> None:
+        for modifier in shooter.get("modifiers", []):
+            mtype = modifier.get("type")
+            if mtype not in SUPPORTED_MODIFIER_TYPES:
+                errors.append(f"Shooter modifier type không hỗ trợ: {mtype}.")
+            if mtype == "Ice" and modifier.get("hp", 1) <= 0:
+                errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
+
+    def _validate_obstacles(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
+        rows = grid.get("rows", 0)
+        cols = grid.get("columns", 0)
+        for obstacle in grid.get("obstacles", []):
+            if obstacle.get("type") != "IceBlock":
+                errors.append(f"GridObstacle type không hỗ trợ: {obstacle.get('type')}.")
+                continue
+            if obstacle.get("hp", 1) <= 0:
+                errors.append(f"IceBlock {obstacle.get('obstacleId')} hp phải > 0.")
+            for r, c in self._expand_shape(obstacle.get("shape", {})):
+                if not (0 <= r < rows and 0 <= c < cols):
+                    errors.append(f"Obstacle {obstacle.get('obstacleId')} shape cell ({r},{c}) ngoài grid.")
+                    continue
+                if obstacle.get("blocksPath", True):
+                    blocked[r][c] = True
+
+    def _validate_shooter_groups(self, grid: Dict[str, Any], shooter_ids: set, errors: List[str]) -> None:
+        for group in grid.get("shooterGroups", []):
+            for shooter_id in group.get("shooterIds", []):
+                if shooter_id not in shooter_ids:
+                    errors.append(f"ShooterGroup {group.get('groupId')} tham chiếu shooterId không tồn tại: {shooter_id}.")
+
+    def _expand_shape(self, shape: Dict[str, Any]) -> List[Tuple[int, int]]:
+        origin = shape.get("origin", {})
+        origin_row = origin.get("row", 0)
+        origin_col = origin.get("column", 0)
+        if shape.get("type") == "Cells":
+            return [(cell.get("row", 0), cell.get("column", 0)) for cell in shape.get("cells", [])]
+        width = max(1, shape.get("width", 1))
+        height = max(1, shape.get("height", 1))
+        return [(origin_row + row, origin_col + col) for row in range(height) for col in range(width)]
+
+    def _has_path_to_top(self, grid: Dict[str, Any], start_row: int, start_col: int, blocked: List[List[bool]]) -> bool:
+        rows = grid.get("rows", 0)
+        cols = grid.get("columns", 0)
+        queue = [(start_row, start_col)]
+        visited = {(start_row, start_col)}
+        while queue:
+            row, col = queue.pop(0)
+            if row == 0:
+                return True
+            for next_row, next_col in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
+                if not (0 <= next_row < rows and 0 <= next_col < cols):
+                    continue
+                if (next_row, next_col) in visited:
+                    continue
+                if (next_row, next_col) != (start_row, start_col) and blocked[next_row][next_col]:
+                    continue
+                visited.add((next_row, next_col))
+                queue.append((next_row, next_col))
+        return False
+
+    def _find_cell(self, grid: Dict[str, Any], row: int, col: int) -> Dict[str, Any]:
+        for cell in grid.get("cells", []):
+            if cell.get("row") == row and cell.get("column") == col:
+                return cell
+        return {}
+
+    def _offset(self, row: int, col: int, direction: str) -> Tuple[int, int]:
+        if direction == "Up":
+            return row - 1, col
+        if direction == "Down":
+            return row + 1, col
+        if direction == "Left":
+            return row, col - 1
+        return row, col + 1
