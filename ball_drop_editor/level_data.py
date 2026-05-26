@@ -70,7 +70,33 @@ def normalize_runtime_level(level: Dict[str, Any]) -> Dict[str, Any]:
     return level
 
 
-def make_shooter_entity(row: int, col: int, color: str, capacity: int) -> Dict[str, Any]:
+def make_shooter_modifiers(
+    hidden: bool = False,
+    ice: bool = False,
+    ice_hp: int = 1,
+    can_click_while_frozen: bool = False,
+    blocks_activation: bool = True,
+) -> List[Dict[str, Any]]:
+    modifiers: List[Dict[str, Any]] = []
+    if hidden:
+        modifiers.append({"type": "Hidden"})
+    if ice:
+        modifiers.append({
+            "type": "Ice",
+            "hp": max(1, ice_hp),
+            "canClickWhileFrozen": can_click_while_frozen,
+            "blocksActivation": blocks_activation,
+        })
+    return modifiers
+
+
+def make_shooter_entity(
+    row: int,
+    col: int,
+    color: str,
+    capacity: int,
+    modifiers: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     sid = f"s_{row}_{col}_{uuid.uuid4().hex[:4]}"
     return {
         "type": "Shooter",
@@ -80,7 +106,7 @@ def make_shooter_entity(row: int, col: int, color: str, capacity: int) -> Dict[s
             "shooterId": sid,
             "colorId": color,
             "capacity": capacity,
-            "modifiers": []
+            "modifiers": copy.deepcopy(modifiers or [])
         }
     }
 
@@ -93,7 +119,7 @@ def make_wall_entity(row: int, col: int) -> Dict[str, Any]:
     }
 
 
-def parse_tunnel_queue(text: str) -> List[Dict[str, Any]]:
+def parse_tunnel_queue(text: str, modifiers: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """
     Syntax:
         Blue:5, Red:6, Orange:4
@@ -120,18 +146,24 @@ def parse_tunnel_queue(text: str) -> List[Dict[str, Any]]:
             "shooterId": f"s_tunnel_{uuid.uuid4().hex[:6]}",
             "colorId": color,
             "capacity": capacity,
-            "modifiers": []
+            "modifiers": copy.deepcopy(modifiers or [])
         })
     return result
 
 
-def make_tunnel_entity(row: int, col: int, direction: str, queue_text: str) -> Dict[str, Any]:
+def make_tunnel_entity(
+    row: int,
+    col: int,
+    direction: str,
+    queue_text: str,
+    modifiers: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     return {
         "type": "Tunnel",
         "entityId": f"tunnel_{row}_{col}_{uuid.uuid4().hex[:4]}",
         "blocksPath": True,
         "outputDirection": direction,
-        "shooterQueue": parse_tunnel_queue(queue_text)
+        "shooterQueue": parse_tunnel_queue(queue_text, modifiers)
     }
 
 
@@ -165,7 +197,14 @@ def entity_label(entity: Optional[Dict[str, Any]]) -> str:
     t = entity.get("type", "")
     if t == "Shooter":
         shooter = entity.get("shooter", {})
-        return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}"
+        modifier_labels = []
+        for modifier in shooter.get("modifiers", []):
+            if modifier.get("type") == "Hidden":
+                modifier_labels.append("H")
+            elif modifier.get("type") == "Ice":
+                modifier_labels.append(f"I{modifier.get('hp', 1)}")
+        suffix = f"\n[{','.join(modifier_labels)}]" if modifier_labels else ""
+        return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}{suffix}"
     if t == "Wall":
         return "WALL"
     if t == "Tunnel":

@@ -13,7 +13,7 @@ Tool Python GUI này giúp level designer/dev:
 - Tạo level mới.
 - Resize grid.
 - Paint cell thành `Shooter`, `Wall`, `Tunnel`, hoặc `Empty`.
-- Cấu hình shooter color/capacity.
+- Cấu hình shooter color/capacity và modifier `Hidden`/`Ice`.
 - Cấu hình tunnel output direction và shooter queue.
 - Cấu hình gate count, số tray visible mỗi gate.
 - Nhập tray queue/layer bằng text format nhanh.
@@ -169,12 +169,12 @@ Wall
 Tunnel
 ```
 
-Các phần data chưa có UI edit đầy đủ ở bản tool đầu:
+Các phần data chưa có UI edit đầy đủ:
 
 ```text
 GridObstacle overlay như IceBlock
 ShooterGroup
-ShooterModifier như Ice/Locked/Hidden
+ShooterModifier riêng cho từng shooter trong queue tunnel (tool hiện apply/remove theo cả queue của tunnel đang chọn)
 ```
 
 ---
@@ -209,7 +209,7 @@ Khi paint brush `Shooter`, tool tạo data dạng:
 | `shooter.shooterId` | Có | ID shooter gameplay. |
 | `shooter.colorId` | Có | Màu gameplay của shooter/ball. |
 | `shooter.capacity` | Có | Số ball nhỏ spawn ra khi shooter bắn. |
-| `shooter.modifiers` | Có | Danh sách modifier. Bản tool đầu để `[]`. |
+| `shooter.modifiers` | Có | Danh sách modifier `Hidden`/`Ice`, chỉnh từ brush hoặc shooter grid đang chọn. |
 
 ### 5.3 Màu hợp lệ trong tool
 
@@ -508,7 +508,7 @@ Chưa simulate đầy đủ:
 - Pathfinding active shooter theo wall/shooter/tunnel.
 - Thứ tự click shooter có thể thắng hay không.
 - Tunnel output bị chặn vĩnh viễn.
-- Modifier như Ice/Locked/Hidden.
+- Modifier của shooter trong queue tunnel được apply/remove theo toàn bộ queue của tunnel đang chọn, chưa chọn riêng từng queue item.
 - Obstacle overlay như IceBlock.
 - Connected shooter group.
 - Wild color matching nâng cao.
@@ -653,7 +653,7 @@ Các tính năng nên thêm ở bản tiếp theo:
 
 - Visual pathfinding preview cho shooter active/inactive.
 - Edit obstacle overlay: IceBlock, Chain, Fog.
-- Edit shooter modifier: Ice, Locked, Hidden.
+- Inspector riêng cho từng shooter trong queue tunnel thay vì thao tác theo toàn bộ queue.
 - Edit shooter group: Connected, Chain, Pair.
 - Simulate đơn giản tổng màu và thứ tự mở grid.
 - Preview gate/tray bằng UI trực quan thay vì text.

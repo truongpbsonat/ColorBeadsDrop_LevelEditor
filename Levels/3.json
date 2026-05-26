@@ -74,11 +74,11 @@
         "column": 4,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_0_4_0822",
+          "entityId": "entity_s_0_4_aa37",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_0_4_0822",
-            "colorId": "Green",
+            "shooterId": "s_0_4_aa37",
+            "colorId": "Purple",
             "capacity": 9,
             "modifiers": []
           }
@@ -148,15 +148,36 @@
         "row": 1,
         "column": 4,
         "entity": {
-          "type": "Shooter",
-          "entityId": "entity_s_1_4_54d4",
+          "type": "Tunnel",
+          "entityId": "tunnel_1_4_8792",
           "blocksPath": true,
-          "shooter": {
-            "shooterId": "s_1_4_54d4",
-            "colorId": "Blue",
-            "capacity": 9,
-            "modifiers": []
-          }
+          "outputDirection": "Up",
+          "shooterQueue": [
+            {
+              "shooterId": "s_tunnel_6ff147",
+              "colorId": "Blue",
+              "capacity": 9,
+              "modifiers": []
+            },
+            {
+              "shooterId": "s_tunnel_85e09a",
+              "colorId": "Red",
+              "capacity": 9,
+              "modifiers": []
+            },
+            {
+              "shooterId": "s_tunnel_16e342",
+              "colorId": "Yellow",
+              "capacity": 9,
+              "modifiers": []
+            },
+            {
+              "shooterId": "s_tunnel_53b675",
+              "colorId": "Green",
+              "capacity": 9,
+              "modifiers": []
+            }
+          ]
         }
       },
       {
@@ -223,15 +244,9 @@
         "row": 2,
         "column": 4,
         "entity": {
-          "type": "Shooter",
-          "entityId": "entity_s_2_4_8969",
-          "blocksPath": true,
-          "shooter": {
-            "shooterId": "s_2_4_8969",
-            "colorId": "Purple",
-            "capacity": 9,
-            "modifiers": []
-          }
+          "type": "Wall",
+          "entityId": "wall_2_4_9ffe",
+          "blocksPath": true
         }
       },
       {
@@ -298,15 +313,9 @@
         "row": 3,
         "column": 4,
         "entity": {
-          "type": "Shooter",
-          "entityId": "entity_s_3_4_7cd9",
-          "blocksPath": true,
-          "shooter": {
-            "shooterId": "s_3_4_7cd9",
-            "colorId": "Yellow",
-            "capacity": 9,
-            "modifiers": []
-          }
+          "type": "Wall",
+          "entityId": "wall_3_4_fa55",
+          "blocksPath": true
         }
       },
       {
@@ -373,15 +382,9 @@
         "row": 4,
         "column": 4,
         "entity": {
-          "type": "Shooter",
-          "entityId": "entity_s_4_4_1a53",
-          "blocksPath": true,
-          "shooter": {
-            "shooterId": "s_4_4_1a53",
-            "colorId": "Red",
-            "capacity": 9,
-            "modifiers": []
-          }
+          "type": "Wall",
+          "entityId": "wall_4_4_7123",
+          "blocksPath": true
         }
       }
     ],

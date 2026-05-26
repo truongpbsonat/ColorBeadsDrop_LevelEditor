@@ -15,6 +15,7 @@ from .level_data import (
     find_cell,
     make_empty_level,
     make_shooter_entity,
+    make_shooter_modifiers,
     make_tunnel_entity,
     make_wall_entity,
     normalize_runtime_level,
@@ -119,6 +120,11 @@ class BallDropLevelEditor(tk.Tk):
         self.brush_type = tk.StringVar(value="Shooter")
         self.brush_color = tk.StringVar(value="Blue")
         self.brush_capacity = tk.IntVar(value=9)
+        self.brush_hidden_modifier = tk.BooleanVar(value=False)
+        self.brush_ice_modifier = tk.BooleanVar(value=False)
+        self.brush_ice_hp = tk.IntVar(value=1)
+        self.brush_ice_can_click = tk.BooleanVar(value=False)
+        self.brush_ice_blocks_activation = tk.BooleanVar(value=True)
         self.tunnel_direction = tk.StringVar(value="Up")
         self.tunnel_queue = tk.StringVar(value="Blue:5, Red:5")
 
@@ -133,6 +139,32 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Label(frame, text="Capacity").pack(anchor="w")
         ttk.Spinbox(frame, from_=1, to=999, textvariable=self.brush_capacity).pack(fill="x", pady=2)
 
+        modifier_frame = ttk.LabelFrame(frame, text="Shooter modifiers", padding=6)
+        modifier_frame.pack(fill="x", pady=(6, 2))
+        ttk.Checkbutton(modifier_frame, text="Hidden", variable=self.brush_hidden_modifier).pack(anchor="w")
+        ttk.Checkbutton(
+            modifier_frame,
+            text="Ice",
+            variable=self.brush_ice_modifier,
+            command=self.update_brush_modifier_state,
+        ).pack(anchor="w")
+        self.ice_hp_label = ttk.Label(modifier_frame, text="Ice HP")
+        self.ice_hp_label.pack(anchor="w")
+        self.ice_hp_spin = ttk.Spinbox(modifier_frame, from_=1, to=999, textvariable=self.brush_ice_hp)
+        self.ice_hp_spin.pack(fill="x", pady=2)
+        self.ice_can_click_check = ttk.Checkbutton(
+            modifier_frame,
+            text="Can click while frozen",
+            variable=self.brush_ice_can_click,
+        )
+        self.ice_can_click_check.pack(anchor="w")
+        self.ice_blocks_activation_check = ttk.Checkbutton(
+            modifier_frame,
+            text="Blocks activation",
+            variable=self.brush_ice_blocks_activation,
+        )
+        self.ice_blocks_activation_check.pack(anchor="w")
+
         self.tunnel_direction_label = ttk.Label(frame, text="Tunnel direction")
         self.tunnel_direction_label.pack(anchor="w")
         self.tunnel_direction_combo = ttk.Combobox(frame, textvariable=self.tunnel_direction, values=DIRECTIONS, state="readonly")
@@ -145,7 +177,11 @@ class BallDropLevelEditor(tk.Tk):
 
         ttk.Button(frame, text="Apply to selected cell", command=self.apply_brush_to_selected).pack(fill="x", pady=(8, 2))
         ttk.Button(frame, text="Clear selected cell", command=self.clear_selected_cell).pack(fill="x", pady=2)
+        ttk.Button(frame, text="Apply modifiers to selected", command=self.apply_modifiers_to_selected_shooters).pack(fill="x", pady=(8, 2))
+        ttk.Button(frame, text="Remove modifiers from selected", command=self.remove_modifiers_from_selected_shooters).pack(fill="x", pady=2)
+        ttk.Button(frame, text="Load selected modifiers", command=self.load_selected_shooter_modifiers).pack(fill="x", pady=2)
         self.update_brush_tunnel_state()
+        self.update_brush_modifier_state()
 
     def update_brush_tunnel_state(self):
         if not hasattr(self, "tunnel_direction_combo"):
@@ -154,6 +190,14 @@ class BallDropLevelEditor(tk.Tk):
         entry_state = "normal" if self.brush_type.get() == "Tunnel" else "disabled"
         self.tunnel_direction_combo.configure(state=state)
         self.tunnel_queue_entry.configure(state=entry_state)
+
+    def update_brush_modifier_state(self):
+        if not hasattr(self, "ice_hp_spin"):
+            return
+        state = "normal" if self.brush_ice_modifier.get() else "disabled"
+        self.ice_hp_spin.configure(state=state)
+        self.ice_can_click_check.configure(state=state)
+        self.ice_blocks_activation_check.configure(state=state)
 
     def _build_grid_panel(self, parent):
         frame = ttk.LabelFrame(parent, text="Grid Size", padding=8)
@@ -1433,6 +1477,64 @@ class BallDropLevelEditor(tk.Tk):
     def _is_shooter_cell(self, row: int, col: int) -> bool:
         return self._is_shooter_entity(find_cell(self.level, row, col).get("entity"))
 
+    def _brush_modifiers(self) -> List[Dict[str, Any]]:
+        return make_shooter_modifiers(
+            hidden=self.brush_hidden_modifier.get(),
+            ice=self.brush_ice_modifier.get(),
+            ice_hp=max(1, safe_int(str(self.brush_ice_hp.get()), 1)),
+            can_click_while_frozen=self.brush_ice_can_click.get(),
+            blocks_activation=self.brush_ice_blocks_activation.get(),
+        )
+
+    def _selected_shooter_data(self) -> List[Dict[str, Any]]:
+        shooters = []
+        for row, col in self._selected_grid_targets():
+            entity = find_cell(self.level, row, col).get("entity")
+            if self._is_shooter_entity(entity):
+                shooters.append(entity["shooter"])
+            elif entity and entity.get("type") == "Tunnel":
+                shooters.extend(entity.get("shooterQueue", []))
+        return shooters
+
+    def apply_modifiers_to_selected_shooters(self):
+        shooters = self._selected_shooter_data()
+        if not shooters:
+            messagebox.showwarning("No Shooter", "Select a shooter cell or a tunnel with queued shooters first.")
+            return
+        self.record_history()
+        modifiers = self._brush_modifiers()
+        for shooter in shooters:
+            shooter["modifiers"] = copy.deepcopy(modifiers)
+        self._refresh_grid_button_states()
+        self.refresh_json_preview()
+
+    def remove_modifiers_from_selected_shooters(self):
+        shooters = self._selected_shooter_data()
+        if not shooters:
+            messagebox.showwarning("No Shooter", "Select a shooter cell or a tunnel with queued shooters first.")
+            return
+        self.record_history()
+        for shooter in shooters:
+            shooter["modifiers"] = []
+        self._refresh_grid_button_states()
+        self.refresh_json_preview()
+
+    def load_selected_shooter_modifiers(self):
+        shooters = self._selected_shooter_data()
+        if not shooters:
+            messagebox.showwarning("No Shooter", "Select a shooter cell or a tunnel with queued shooters first.")
+            return
+        modifiers = shooters[0].get("modifiers", [])
+        hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
+        ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
+        self.brush_hidden_modifier.set(hidden is not None)
+        self.brush_ice_modifier.set(ice is not None)
+        if ice is not None:
+            self.brush_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
+            self.brush_ice_can_click.set(bool(ice.get("canClickWhileFrozen", False)))
+            self.brush_ice_blocks_activation.set(bool(ice.get("blocksActivation", True)))
+        self.update_brush_modifier_state()
+
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:
         if entity and entity.get("type") == "Shooter" and entity.get("shooter", {}).get("colorId") in ["Yellow", "Wild", "Cyan", "Pink"]:
             return "#000000"
@@ -1529,11 +1631,23 @@ class BallDropLevelEditor(tk.Tk):
         if btype == "Empty":
             cell["entity"] = None
         elif btype == "Shooter":
-            cell["entity"] = make_shooter_entity(row, col, self.brush_color.get(), max(1, self.brush_capacity.get()))
+            cell["entity"] = make_shooter_entity(
+                row,
+                col,
+                self.brush_color.get(),
+                max(1, self.brush_capacity.get()),
+                self._brush_modifiers(),
+            )
         elif btype == "Wall":
             cell["entity"] = make_wall_entity(row, col)
         elif btype == "Tunnel":
-            cell["entity"] = make_tunnel_entity(row, col, self.tunnel_direction.get(), self.tunnel_queue.get())
+            cell["entity"] = make_tunnel_entity(
+                row,
+                col,
+                self.tunnel_direction.get(),
+                self.tunnel_queue.get(),
+                self._brush_modifiers(),
+            )
 
     def paint_cell(self, row: int, col: int):
         self.record_history()
