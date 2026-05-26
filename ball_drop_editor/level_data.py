@@ -244,9 +244,6 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
         normalized["hp"] = safe_int(str(modifier.get("hp", 1)), 1)
         normalized["canClickWhileFrozen"] = bool(modifier.get("canClickWhileFrozen", False))
         normalized["blocksActivation"] = bool(modifier.get("blocksActivation", True))
-    if modifier_type == "Locked":
-        normalized["requiredKeyId"] = str(modifier.get("requiredKeyId", "")).strip()
-        normalized["blocksActivation"] = bool(modifier.get("blocksActivation", True))
     return normalized
 
 
@@ -264,8 +261,11 @@ def _normalize_obstacle(obstacle: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _normalize_obstacle_shape(shape: Dict[str, Any]) -> Dict[str, Any]:
+    shape_type = str(shape.get("type", "")).strip() or "Rect"
+    if shape_type == "Cells":
+        shape_type = "CustomCells"
     return {
-        "type": str(shape.get("type", "")).strip(),
+        "type": shape_type,
         "origin": _normalize_position(shape.get("origin", {})),
         "width": max(1, safe_int(str(shape.get("width", 1)), 1)),
         "height": max(1, safe_int(str(shape.get("height", 1)), 1)),

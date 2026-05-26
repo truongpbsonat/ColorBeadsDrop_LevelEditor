@@ -3,10 +3,18 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
-from .constants import BALL_COLORS, DIRECTIONS, RUNTIME_ENTITY_TYPES
+from .constants import (
+    BALL_COLORS,
+    DIRECTIONS,
+    GRID_OBSTACLE_SHAPE_TYPES,
+    GRID_OBSTACLE_TYPES,
+    RUNTIME_ENTITY_TYPES,
+    SHOOTER_GROUP_RULES,
+    SHOOTER_GROUP_TYPES,
+    SHOOTER_MODIFIER_TYPES,
+)
 
 LEGACY_GRID_CELL_FIELDS = {"type", "shooter", "wall", "tunnel", "portal", "generator", "blocker"}
-SUPPORTED_MODIFIER_TYPES = {"Ice", "Locked", "Hidden"}
 
 class LevelValidator:
     def validate(self, level: Dict[str, Any]) -> Tuple[List[str], List[str]]:
@@ -132,7 +140,9 @@ class LevelValidator:
                 errors.append(f"gateIndex ngoài phạm vi: {gi}.")
             if not gate.get("trayQueue"):
                 warnings.append(f"Gate {gi} không có trayQueue.")
-            for tray in gate.get("trayQueue", []):
+            for tray_index, tray in enumerate(gate.get("trayQueue", [])):
+                if not str(tray.get("trayId", "")).strip():
+                    errors.append(f"Gate {gi} has an empty trayId at index {tray_index}.")
                 layers = tray.get("layers", [])
                 if not layers:
                     errors.append(f"Tray {tray.get('trayId')} không có layers.")
@@ -145,7 +155,7 @@ class LevelValidator:
                         errors.append(f"Tray {tray.get('trayId')} layer requiredCount phải > 0.")
                     color_need[color] += max(0, required)
 
-        for color in sorted(set(color_need) | set(color_capacity)):
+        for color in sorted(color_need):
             if color not in BALL_COLORS or color == "None":
                 continue
             need = color_need.get(color, 0)
@@ -161,7 +171,7 @@ class LevelValidator:
                     f"(khoảng {shooter_count} shooter thường capacity 9) hoặc giảm {missing} trayRequired "
                     f"(khoảng {tray_count} tray/layer capacity 3)."
                 )
-            elif cap > need:
+            elif cap > need * 2:
                 extra = cap - need
                 shooter_count = (extra + 8) // 9
                 tray_count = (extra + 2) // 3
@@ -183,7 +193,7 @@ class LevelValidator:
     def _validate_modifiers(self, shooter: Dict[str, Any], shooter_id: str, errors: List[str]) -> None:
         for modifier in shooter.get("modifiers", []):
             mtype = modifier.get("type")
-            if mtype not in SUPPORTED_MODIFIER_TYPES:
+            if mtype not in SHOOTER_MODIFIER_TYPES:
                 errors.append(f"Shooter modifier type không hỗ trợ: {mtype}.")
             if mtype == "Ice" and modifier.get("hp", 1) <= 0:
                 errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
@@ -192,11 +202,15 @@ class LevelValidator:
         rows = grid.get("rows", 0)
         cols = grid.get("columns", 0)
         for obstacle in grid.get("obstacles", []):
-            if obstacle.get("type") != "IceBlock":
+            if obstacle.get("type") not in GRID_OBSTACLE_TYPES:
                 errors.append(f"GridObstacle type không hỗ trợ: {obstacle.get('type')}.")
                 continue
             if obstacle.get("hp", 1) <= 0:
                 errors.append(f"IceBlock {obstacle.get('obstacleId')} hp phải > 0.")
+            shape_type = obstacle.get("shape", {}).get("type", "Rect")
+            if shape_type not in GRID_OBSTACLE_SHAPE_TYPES:
+                errors.append(f"Obstacle {obstacle.get('obstacleId')} has unsupported shape type: {shape_type}.")
+                continue
             for r, c in self._expand_shape(obstacle.get("shape", {})):
                 if not (0 <= r < rows and 0 <= c < cols):
                     errors.append(f"Obstacle {obstacle.get('obstacleId')} shape cell ({r},{c}) ngoài grid.")
@@ -206,6 +220,11 @@ class LevelValidator:
 
     def _validate_shooter_groups(self, grid: Dict[str, Any], shooter_ids: set, errors: List[str]) -> None:
         for group in grid.get("shooterGroups", []):
+            group_id = group.get("groupId")
+            if group.get("type") not in SHOOTER_GROUP_TYPES:
+                errors.append(f"ShooterGroup {group_id} has invalid type: {group.get('type')}.")
+            if group.get("rule") not in SHOOTER_GROUP_RULES:
+                errors.append(f"ShooterGroup {group_id} has invalid rule: {group.get('rule')}.")
             for shooter_id in group.get("shooterIds", []):
                 if shooter_id not in shooter_ids:
                     errors.append(f"ShooterGroup {group.get('groupId')} tham chiếu shooterId không tồn tại: {shooter_id}.")
@@ -214,8 +233,20 @@ class LevelValidator:
         origin = shape.get("origin", {})
         origin_row = origin.get("row", 0)
         origin_col = origin.get("column", 0)
-        if shape.get("type") == "Cells":
+        if shape.get("type") == "CustomCells":
             return [(cell.get("row", 0), cell.get("column", 0)) for cell in shape.get("cells", [])]
+        if shape.get("type") == "Plus":
+            return [
+                (origin_row, origin_col),
+                (origin_row - 1, origin_col),
+                (origin_row + 1, origin_col),
+                (origin_row, origin_col - 1),
+                (origin_row, origin_col + 1),
+            ]
+        if shape.get("type") == "LineHorizontal":
+            return [(origin_row, origin_col + col) for col in range(max(1, shape.get("width", 1)))]
+        if shape.get("type") == "LineVertical":
+            return [(origin_row + row, origin_col) for row in range(max(1, shape.get("height", 1)))]
         width = max(1, shape.get("width", 1))
         height = max(1, shape.get("height", 1))
         return [(origin_row + row, origin_col + col) for row in range(height) for col in range(width)]
