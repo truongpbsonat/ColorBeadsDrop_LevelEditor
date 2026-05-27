@@ -74,8 +74,6 @@ def make_shooter_modifiers(
     hidden: bool = False,
     ice: bool = False,
     ice_hp: int = 1,
-    can_click_while_frozen: bool = False,
-    blocks_activation: bool = True,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -84,8 +82,6 @@ def make_shooter_modifiers(
         modifiers.append({
             "type": "Ice",
             "hp": max(1, ice_hp),
-            "canClickWhileFrozen": can_click_while_frozen,
-            "blocksActivation": blocks_activation,
         })
     return modifiers
 
@@ -281,8 +277,6 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
     normalized = {"type": modifier_type}
     if modifier_type == "Ice":
         normalized["hp"] = safe_int(str(modifier.get("hp", 1)), 1)
-        normalized["canClickWhileFrozen"] = bool(modifier.get("canClickWhileFrozen", False))
-        normalized["blocksActivation"] = bool(modifier.get("blocksActivation", True))
     return normalized
 
 
