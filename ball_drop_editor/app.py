@@ -63,6 +63,7 @@ class BallDropLevelEditor(tk.Tk):
         self._build_ui()
         self._refresh_all()
         self._mark_current_level_saved()
+        self.protocol("WM_DELETE_WINDOW", self.close_editor)
 
     def _init_level_meta_vars(self):
         self.game_mode_var = tk.StringVar(value="Classic")
@@ -494,6 +495,14 @@ class BallDropLevelEditor(tk.Tk):
             f"Unsaved changes:\n{change_log}\n\n"
             "Continue and discard these changes?",
         )
+
+    def close_editor(self):
+        if self.has_unsaved_changes() and not self._confirm_discard_unsaved_changes("closing the tool"):
+            return
+        if self._validation_after_id is not None:
+            self.after_cancel(self._validation_after_id)
+            self._validation_after_id = None
+        self.destroy()
 
     def unsaved_change_log(self, max_items: int = 20) -> List[str]:
         changes: List[str] = []
