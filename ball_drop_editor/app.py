@@ -39,6 +39,7 @@ class BallDropLevelEditor(tk.Tk):
 
         self.level = make_empty_level()
         self.current_file: Optional[str] = None
+        self.saved_level_snapshot = copy.deepcopy(self.level)
         self.level_folder = DEFAULT_LEVEL_SAVE_DIR
         self.level_file_ids: List[int] = []
         self.selected_cell: Optional[Tuple[int, int]] = None
@@ -61,11 +62,13 @@ class BallDropLevelEditor(tk.Tk):
         self._init_level_meta_vars()
         self._build_ui()
         self._refresh_all()
+        self._mark_current_level_saved()
 
     def _init_level_meta_vars(self):
         self.game_mode_var = tk.StringVar(value="Classic")
         self.difficulty_var = tk.StringVar(value="Normal")
         self.level_var = tk.StringVar(value="1")
+        self.file_level_var = tk.StringVar(value="1")
         self.category_var = tk.IntVar(value=0)
         self.time_var = tk.IntVar(value=60)
         self.level_name_var = tk.StringVar(value="New Level")
@@ -120,8 +123,8 @@ class BallDropLevelEditor(tk.Tk):
 
         level_row = ttk.Frame(frame)
         level_row.pack(fill="x", pady=2)
-        ttk.Label(level_row, text="Level", width=8).pack(side="left")
-        level_entry = ttk.Entry(level_row, textvariable=self.level_var, width=9)
+        ttk.Label(level_row, text="File #", width=8).pack(side="left")
+        level_entry = ttk.Entry(level_row, textvariable=self.file_level_var, width=9)
         level_entry.pack(side="left", fill="x", expand=True)
         level_entry.bind("<Return>", lambda e: self.load_selected_level())
 
@@ -472,15 +475,93 @@ class BallDropLevelEditor(tk.Tk):
         self.validation_text.tag_configure("info_item", foreground="#A7F3D0", lmargin1=8, lmargin2=20, spacing3=3)
 
     def new_level(self):
-        if not messagebox.askyesno("New Level", "Create a new level and discard current changes?"):
+        if self.has_unsaved_changes():
+            if not self._confirm_discard_unsaved_changes("creating a new level"):
+                return
+        elif not messagebox.askyesno("New Level", "Create a new level?"):
             return
         self.record_history()
         self.level = make_empty_level()
         self.current_file = None
         self._refresh_all()
+        self._mark_current_level_saved()
 
     def current_level_id(self) -> int:
         return max(1, safe_int(str(self.level_var.get()), 1))
+
+    def selected_file_level_id(self) -> int:
+        return max(1, safe_int(str(self.file_level_var.get()), self.current_level_id()))
+
+    def _mark_current_level_saved(self):
+        self.sync_basic_fields()
+        self.saved_level_snapshot = copy.deepcopy(self.level)
+
+    def has_unsaved_changes(self) -> bool:
+        self.sync_basic_fields()
+        return self.level != self.saved_level_snapshot
+
+    def _confirm_discard_unsaved_changes(self, action: str) -> bool:
+        if not self.has_unsaved_changes():
+            return True
+        change_log = "\n".join(f"- {item}" for item in self.unsaved_change_log())
+        return messagebox.askyesno(
+            "Unsaved Changes",
+            f"Current level has unsaved changes before {action}.\n\n"
+            f"Unsaved changes:\n{change_log}\n\n"
+            "Continue and discard these changes?",
+        )
+
+    def unsaved_change_log(self, max_items: int = 20) -> List[str]:
+        changes: List[str] = []
+        self._collect_changed_paths(self.saved_level_snapshot, self.level, "", changes, max_items + 1)
+        if not changes:
+            return ["No detailed changes found."]
+        if len(changes) > max_items:
+            return changes[:max_items] + ["... more changes not shown"]
+        return changes
+
+    def _collect_changed_paths(self, before: Any, after: Any, path: str, changes: List[str], limit: int):
+        if len(changes) >= limit:
+            return
+        label = path or "level"
+        if type(before) is not type(after):
+            changes.append(f"{label}: {self._format_change_value(before)} -> {self._format_change_value(after)}")
+            return
+        if isinstance(before, dict):
+            for key in sorted(set(before) | set(after), key=str):
+                child_path = f"{label}.{key}" if path else str(key)
+                if key not in before:
+                    changes.append(f"{child_path}: added {self._format_change_value(after[key])}")
+                elif key not in after:
+                    changes.append(f"{child_path}: removed {self._format_change_value(before[key])}")
+                else:
+                    self._collect_changed_paths(before[key], after[key], child_path, changes, limit)
+                if len(changes) >= limit:
+                    return
+            return
+        if isinstance(before, list):
+            if len(before) != len(after):
+                changes.append(f"{label}: list length {len(before)} -> {len(after)}")
+                if len(changes) >= limit:
+                    return
+            for idx, (before_item, after_item) in enumerate(zip(before, after)):
+                self._collect_changed_paths(before_item, after_item, f"{label}[{idx}]", changes, limit)
+                if len(changes) >= limit:
+                    return
+            return
+        if before != after:
+            changes.append(f"{label}: {self._format_change_value(before)} -> {self._format_change_value(after)}")
+
+    def _format_change_value(self, value: Any) -> str:
+        if isinstance(value, dict):
+            entity_type = value.get("type")
+            if entity_type:
+                return f"{entity_type} object"
+            return f"object({len(value)} keys)"
+        if isinstance(value, list):
+            return f"list({len(value)})"
+        text = repr(value)
+        return text if len(text) <= 80 else f"{text[:77]}..."
 
     def _level_id_from_path(self, path: str) -> Optional[int]:
         stem = os.path.splitext(os.path.basename(path))[0]
@@ -508,13 +589,9 @@ class BallDropLevelEditor(tk.Tk):
         loaded = f"Loaded: {os.path.basename(self.current_file)}" if self.current_file else "No file loaded"
         if self.level_file_ids:
             count = len(self.level_file_ids)
-            if count <= 8:
-                ids_text = ", ".join(str(level_id) for level_id in self.level_file_ids)
-            else:
-                ids_text = f"{self.level_file_ids[0]}-{self.level_file_ids[-1]}"
-            files = f"{count} numeric JSON file(s): {ids_text}"
+            files = f"{count} numeric JSON file(s) in folder"
         else:
-            files = "No numeric JSON files found"
+            files = "0 numeric JSON files in folder"
         self.level_file_status_var.set(f"{loaded}\n{files}")
 
     def choose_level_folder(self):
@@ -527,19 +604,22 @@ class BallDropLevelEditor(tk.Tk):
         self._refresh_level_folder_files()
 
     def load_selected_level(self):
-        level_id = self.current_level_id()
+        level_id = self.selected_file_level_id()
+        self._load_level_by_id(level_id)
+
+    def _load_level_by_id(self, level_id: int):
         self._refresh_level_folder_files()
         path = os.path.join(self.level_folder, f"{level_id}.json")
         if not os.path.isfile(path):
             messagebox.showerror("Load Error", f"Cannot find {level_id}.json in:\n{self.level_folder}")
-            return
-        self._load_level_file(path, level_id=level_id)
+            return False
+        return self._load_level_file(path, level_id=level_id)
 
     def _neighbor_level_id(self, direction: int) -> Optional[int]:
         self._refresh_level_folder_files()
         if not self.level_file_ids:
             return None
-        current = self.current_level_id()
+        current = self.selected_file_level_id()
         if current in self.level_file_ids:
             next_index = self.level_file_ids.index(current) + direction
             if 0 <= next_index < len(self.level_file_ids):
@@ -559,8 +639,7 @@ class BallDropLevelEditor(tk.Tk):
                 return
             messagebox.showinfo("Load", "Already at the first level in this folder.")
             return
-        self.level_var.set(str(level_id))
-        self.load_selected_level()
+        self._load_level_by_id(level_id)
 
     def load_next_level(self):
         level_id = self._neighbor_level_id(1)
@@ -570,10 +649,11 @@ class BallDropLevelEditor(tk.Tk):
                 return
             messagebox.showinfo("Load", "Already at the last level in this folder.")
             return
-        self.level_var.set(str(level_id))
-        self.load_selected_level()
+        self._load_level_by_id(level_id)
 
-    def _load_level_file(self, path: str, level_id: Optional[int] = None):
+    def _load_level_file(self, path: str, level_id: Optional[int] = None) -> bool:
+        if not self._confirm_discard_unsaved_changes("loading another level"):
+            return False
         try:
             with open(path, "r", encoding="utf-8") as f:
                 loaded_level = json.load(f)
@@ -587,9 +667,11 @@ class BallDropLevelEditor(tk.Tk):
             self.undo_stack.clear()
             self.redo_stack.clear()
             self._refresh_all()
-            messagebox.showinfo("Load", f"Loaded:\n{path}")
+            self._mark_current_level_saved()
+            return True
         except Exception as exc:
             messagebox.showerror("Load Error", str(exc))
+            return False
 
     def open_json(self):
         initial_dir = self.level_folder if os.path.isdir(self.level_folder) else DEFAULT_LEVEL_SAVE_DIR
@@ -613,6 +695,7 @@ class BallDropLevelEditor(tk.Tk):
             self.current_file = path
             self.level_folder = folder
             self._refresh_level_folder_files()
+            self._mark_current_level_saved()
             messagebox.showinfo("Save", f"Saved:\n{path}")
         except Exception as exc:
             messagebox.showerror("Save Error", str(exc))
@@ -635,6 +718,7 @@ class BallDropLevelEditor(tk.Tk):
         file_level_id = self._level_id_from_path(path)
         if file_level_id is not None:
             self.level_var.set(str(file_level_id))
+            self.file_level_var.set(str(file_level_id))
         self.sync_basic_fields()
         normalize_runtime_level(self.level)
         try:
@@ -643,6 +727,7 @@ class BallDropLevelEditor(tk.Tk):
             self.current_file = path
             self.level_folder = os.path.dirname(path)
             self._refresh_level_folder_files()
+            self._mark_current_level_saved()
             messagebox.showinfo("Save", f"Saved:\n{path}")
         except Exception as exc:
             messagebox.showerror("Save Error", str(exc))
@@ -1898,6 +1983,7 @@ class BallDropLevelEditor(tk.Tk):
         self.game_mode_var.set(self.level.get("gameMode", "Classic"))
         self.difficulty_var.set(self.level.get("difficulty", "Normal"))
         self.level_var.set(str(self.level.get("level", 1)))
+        self.file_level_var.set(str(self.level.get("level", 1)))
         self.category_var.set(self.level.get("category", 0))
         self.time_var.set(self.level.get("time", 60))
         self.level_name_var.set(self.level.get("levelName", "New Level"))
