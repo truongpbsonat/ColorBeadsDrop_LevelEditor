@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, ENTITY_TYPES, GAME_MODES, LEVEL_DIFFICULTIES
+from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES
 from .gate_text import gates_to_text, parse_gate_text
 from .level_data import (
     entity_bg,
@@ -39,6 +39,8 @@ class BallDropLevelEditor(tk.Tk):
 
         self.level = make_empty_level()
         self.current_file: Optional[str] = None
+        self.level_folder = DEFAULT_LEVEL_SAVE_DIR
+        self.level_file_ids: List[int] = []
         self.selected_cell: Optional[Tuple[int, int]] = None
         self.selected_grid_cells: Set[Tuple[int, int]] = set()
         self.grid_buttons: Dict[Tuple[int, int], tk.Button] = {}
@@ -56,8 +58,19 @@ class BallDropLevelEditor(tk.Tk):
         self.grid_drag_cell: Optional[Tuple[int, int]] = None
         self.gate_drag_source: Optional[Tuple[int, int]] = None
 
+        self._init_level_meta_vars()
         self._build_ui()
         self._refresh_all()
+
+    def _init_level_meta_vars(self):
+        self.game_mode_var = tk.StringVar(value="Classic")
+        self.difficulty_var = tk.StringVar(value="Normal")
+        self.level_var = tk.StringVar(value="1")
+        self.category_var = tk.IntVar(value=0)
+        self.time_var = tk.IntVar(value=60)
+        self.level_name_var = tk.StringVar(value="New Level")
+        self.level_folder_var = tk.StringVar(value=f"Folder: {self.level_folder}")
+        self.level_file_status_var = tk.StringVar(value="No file loaded")
 
     def _build_ui(self):
         self.columnconfigure(0, weight=0)
@@ -98,19 +111,39 @@ class BallDropLevelEditor(tk.Tk):
         self._build_validation_panel(validation_side)
 
     def _build_toolbar(self, parent):
-        frame = ttk.LabelFrame(parent, text="File", padding=8)
+        frame = ttk.LabelFrame(parent, text="File / Level", padding=8)
         frame.pack(fill="x", pady=(0, 8))
 
         ttk.Button(frame, text="New", command=self.new_level).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Open JSON", command=self.open_json).pack(fill="x", pady=2)
+        ttk.Button(frame, text="Choose JSON Folder", command=self.choose_level_folder).pack(fill="x", pady=2)
+        ttk.Label(frame, textvariable=self.level_folder_var, wraplength=220, justify="left").pack(fill="x", pady=(2, 6))
+
+        level_row = ttk.Frame(frame)
+        level_row.pack(fill="x", pady=2)
+        ttk.Label(level_row, text="Level", width=8).pack(side="left")
+        level_entry = ttk.Entry(level_row, textvariable=self.level_var, width=9)
+        level_entry.pack(side="left", fill="x", expand=True)
+        level_entry.bind("<Return>", lambda e: self.load_selected_level())
+
+        load_row = ttk.Frame(frame)
+        load_row.pack(fill="x", pady=2)
+        ttk.Button(load_row, text="Previous", command=self.load_previous_level).pack(side="left", fill="x", expand=True)
+        ttk.Button(load_row, text="Load", command=self.load_selected_level).pack(side="left", fill="x", expand=True, padx=4)
+        ttk.Button(load_row, text="Next", command=self.load_next_level).pack(side="left", fill="x", expand=True)
+
+        meta_row = ttk.Frame(frame)
+        meta_row.pack(fill="x", pady=(6, 2))
+        ttk.Label(meta_row, text="Difficulty", width=8).pack(side="left")
+        difficulty_combo = ttk.Combobox(meta_row, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=12)
+        difficulty_combo.pack(side="left", fill="x", expand=True)
+        difficulty_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh_json_preview())
+
         ttk.Button(frame, text="Save", command=self.save_json).pack(fill="x", pady=2)
         ttk.Button(frame, text="Save As", command=self.save_json_as).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Validate", command=self.validate_level).pack(fill="x", pady=2)
+        ttk.Label(frame, textvariable=self.level_file_status_var, wraplength=220, justify="left").pack(fill="x", pady=(2, 6))
         ttk.Separator(frame).pack(fill="x", pady=6)
         ttk.Button(frame, text="Undo", command=self.undo).pack(fill="x", pady=2)
         ttk.Button(frame, text="Redo", command=self.redo).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Copy Cell", command=self.copy_selected_cell).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Paste Cell", command=self.paste_selected_cell).pack(fill="x", pady=2)
         ttk.Button(frame, text="Info", command=self.show_info).pack(fill="x", pady=2)
 
     def _build_brush_panel(self, parent):
@@ -219,35 +252,11 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Button(frame, text="Resize/Rebuild", command=self.resize_grid).pack(fill="x", pady=(8, 2))
 
     def _build_grid_editor(self, parent):
-        parent.rowconfigure(2, weight=1)
+        parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        meta = ttk.LabelFrame(parent, text="Level Meta", padding=8)
-        meta.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        meta.columnconfigure(1, weight=1)
-
-        self.game_mode_var = tk.StringVar(value="Classic")
-        self.difficulty_var = tk.StringVar(value="Normal")
-        self.level_var = tk.IntVar(value=1)
-        self.category_var = tk.IntVar(value=0)
-        self.time_var = tk.IntVar(value=60)
-        self.level_name_var = tk.StringVar(value="New Level")
-
-        ttk.Label(meta, text="Game Mode").grid(row=0, column=0, sticky="w")
-        ttk.Combobox(meta, textvariable=self.game_mode_var, values=GAME_MODES, state="readonly", width=12).grid(row=0, column=1, sticky="w", padx=6)
-        ttk.Label(meta, text="Difficulty").grid(row=1, column=0, sticky="w")
-        ttk.Combobox(meta, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=12).grid(row=1, column=1, sticky="w", padx=6)
-        ttk.Label(meta, text="Level").grid(row=2, column=0, sticky="w")
-        ttk.Entry(meta, textvariable=self.level_var, width=12).grid(row=2, column=1, sticky="w", padx=6)
-        ttk.Label(meta, text="Category").grid(row=3, column=0, sticky="w")
-        ttk.Entry(meta, textvariable=self.category_var, width=12).grid(row=3, column=1, sticky="w", padx=6)
-        ttk.Label(meta, text="Time").grid(row=4, column=0, sticky="w")
-        ttk.Entry(meta, textvariable=self.time_var, width=12).grid(row=4, column=1, sticky="w", padx=6)
-        ttk.Label(meta, text="Level Name").grid(row=5, column=0, sticky="w")
-        ttk.Entry(meta, textvariable=self.level_name_var).grid(row=5, column=1, sticky="ew", padx=6)
-
         tools = ttk.LabelFrame(parent, text="Grid Tools", padding=8)
-        tools.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        tools.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         tools.columnconfigure(8, weight=1)
         self.grid_paint_on_click_var = tk.BooleanVar(value=True)
         self.grid_right_clear_var = tk.BooleanVar(value=True)
@@ -261,7 +270,7 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Button(tools, text="Paste", command=self.paste_selected_cell).grid(row=1, column=3, sticky="w", padx=(12, 0), pady=(8, 0))
 
         grid_holder = ttk.LabelFrame(parent, text="Grid Click/Paint", padding=8)
-        grid_holder.grid(row=2, column=0, sticky="nsew")
+        grid_holder.grid(row=1, column=0, sticky="nsew")
         grid_holder.rowconfigure(0, weight=1)
         grid_holder.columnconfigure(0, weight=1)
 
@@ -279,7 +288,7 @@ class BallDropLevelEditor(tk.Tk):
         self.grid_inner.bind("<Configure>", lambda e: self.grid_canvas.configure(scrollregion=self.grid_canvas.bbox("all")))
 
         self.selected_label = ttk.Label(parent, text="Selected: none")
-        self.selected_label.grid(row=3, column=0, sticky="w", pady=(8, 0))
+        self.selected_label.grid(row=2, column=0, sticky="w", pady=(8, 0))
 
     def _build_gate_editor(self, parent):
         parent.rowconfigure(1, weight=1)
@@ -470,41 +479,150 @@ class BallDropLevelEditor(tk.Tk):
         self.current_file = None
         self._refresh_all()
 
-    def open_json(self):
-        path = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")])
+    def current_level_id(self) -> int:
+        return max(1, safe_int(str(self.level_var.get()), 1))
+
+    def _level_id_from_path(self, path: str) -> Optional[int]:
+        stem = os.path.splitext(os.path.basename(path))[0]
+        if not stem.isdigit():
+            return None
+        level_id = int(stem)
+        return level_id if level_id > 0 else None
+
+    def _refresh_level_folder_files(self):
+        ids: List[int] = []
+        if os.path.isdir(self.level_folder):
+            try:
+                names = os.listdir(self.level_folder)
+            except OSError:
+                names = []
+            for name in names:
+                stem, ext = os.path.splitext(name)
+                if ext.lower() == ".json" and stem.isdigit():
+                    ids.append(int(stem))
+        self.level_file_ids = sorted(set(ids))
+        self._update_level_file_status()
+
+    def _update_level_file_status(self):
+        self.level_folder_var.set(f"Folder: {self.level_folder}")
+        loaded = f"Loaded: {os.path.basename(self.current_file)}" if self.current_file else "No file loaded"
+        if self.level_file_ids:
+            count = len(self.level_file_ids)
+            if count <= 8:
+                ids_text = ", ".join(str(level_id) for level_id in self.level_file_ids)
+            else:
+                ids_text = f"{self.level_file_ids[0]}-{self.level_file_ids[-1]}"
+            files = f"{count} numeric JSON file(s): {ids_text}"
+        else:
+            files = "No numeric JSON files found"
+        self.level_file_status_var.set(f"{loaded}\n{files}")
+
+    def choose_level_folder(self):
+        initial_dir = self.level_folder if os.path.isdir(self.level_folder) else DEFAULT_LEVEL_SAVE_DIR
+        path = filedialog.askdirectory(initialdir=initial_dir, title="Choose folder with level JSON files")
         if not path:
             return
+        self.level_folder = path
+        self.current_file = None
+        self._refresh_level_folder_files()
+
+    def load_selected_level(self):
+        level_id = self.current_level_id()
+        self._refresh_level_folder_files()
+        path = os.path.join(self.level_folder, f"{level_id}.json")
+        if not os.path.isfile(path):
+            messagebox.showerror("Load Error", f"Cannot find {level_id}.json in:\n{self.level_folder}")
+            return
+        self._load_level_file(path, level_id=level_id)
+
+    def _neighbor_level_id(self, direction: int) -> Optional[int]:
+        self._refresh_level_folder_files()
+        if not self.level_file_ids:
+            return None
+        current = self.current_level_id()
+        if current in self.level_file_ids:
+            next_index = self.level_file_ids.index(current) + direction
+            if 0 <= next_index < len(self.level_file_ids):
+                return self.level_file_ids[next_index]
+            return None
+        if direction < 0:
+            before = [level_id for level_id in self.level_file_ids if level_id < current]
+            return before[-1] if before else None
+        after = [level_id for level_id in self.level_file_ids if level_id > current]
+        return after[0] if after else None
+
+    def load_previous_level(self):
+        level_id = self._neighbor_level_id(-1)
+        if level_id is None:
+            if not self.level_file_ids:
+                messagebox.showwarning("Load", "Choose a folder with numeric JSON files first.")
+                return
+            messagebox.showinfo("Load", "Already at the first level in this folder.")
+            return
+        self.level_var.set(str(level_id))
+        self.load_selected_level()
+
+    def load_next_level(self):
+        level_id = self._neighbor_level_id(1)
+        if level_id is None:
+            if not self.level_file_ids:
+                messagebox.showwarning("Load", "Choose a folder with numeric JSON files first.")
+                return
+            messagebox.showinfo("Load", "Already at the last level in this folder.")
+            return
+        self.level_var.set(str(level_id))
+        self.load_selected_level()
+
+    def _load_level_file(self, path: str, level_id: Optional[int] = None):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                self.level = json.load(f)
-            normalize_runtime_level(self.level)
+                loaded_level = json.load(f)
+            normalize_runtime_level(loaded_level)
+            file_level_id = level_id if level_id is not None else self._level_id_from_path(path)
+            if file_level_id is not None:
+                loaded_level["level"] = file_level_id
+            self.level = loaded_level
             self.current_file = path
+            self.level_folder = os.path.dirname(path)
             self.undo_stack.clear()
             self.redo_stack.clear()
             self._refresh_all()
-            messagebox.showinfo("Open", f"Loaded:\n{path}")
+            messagebox.showinfo("Load", f"Loaded:\n{path}")
         except Exception as exc:
-            messagebox.showerror("Open Error", str(exc))
+            messagebox.showerror("Load Error", str(exc))
+
+    def open_json(self):
+        initial_dir = self.level_folder if os.path.isdir(self.level_folder) else DEFAULT_LEVEL_SAVE_DIR
+        path = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
+        )
+        if not path:
+            return
+        self._load_level_file(path)
 
     def save_json(self):
         self.sync_basic_fields()
         normalize_runtime_level(self.level)
-        os.makedirs(DEFAULT_LEVEL_SAVE_DIR, exist_ok=True)
-        path = os.path.join(DEFAULT_LEVEL_SAVE_DIR, self.default_level_filename())
+        folder = self.level_folder or DEFAULT_LEVEL_SAVE_DIR
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, self.default_level_filename())
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.level, f, ensure_ascii=False, indent=2)
             self.current_file = path
+            self.level_folder = folder
+            self._refresh_level_folder_files()
             messagebox.showinfo("Save", f"Saved:\n{path}")
         except Exception as exc:
             messagebox.showerror("Save Error", str(exc))
 
     def default_level_filename(self) -> str:
-        level_id = max(1, safe_int(str(self.level.get("level", 1)), 1))
+        level_id = self.current_level_id()
         return f"{level_id}.json"
 
     def save_json_as(self):
-        initial_dir = DEFAULT_LEVEL_SAVE_DIR
+        initial_dir = self.level_folder if self.level_folder else DEFAULT_LEVEL_SAVE_DIR
         if not os.path.isdir(initial_dir):
             os.makedirs(initial_dir, exist_ok=True)
         path = filedialog.asksaveasfilename(
@@ -514,12 +632,17 @@ class BallDropLevelEditor(tk.Tk):
         )
         if not path:
             return
+        file_level_id = self._level_id_from_path(path)
+        if file_level_id is not None:
+            self.level_var.set(str(file_level_id))
         self.sync_basic_fields()
         normalize_runtime_level(self.level)
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.level, f, ensure_ascii=False, indent=2)
             self.current_file = path
+            self.level_folder = os.path.dirname(path)
+            self._refresh_level_folder_files()
             messagebox.showinfo("Save", f"Saved:\n{path}")
         except Exception as exc:
             messagebox.showerror("Save Error", str(exc))
@@ -569,7 +692,7 @@ class BallDropLevelEditor(tk.Tk):
             "- Double-click chuột trái luôn fill ô theo config hiện tại.\n"
             "- Kéo thả một ô shooter sang ô khác để hoán đổi vị trí.\n"
             "- Multi shooter select cho phép Ctrl/Shift-click chọn nhiều shooter rồi Paint/Clear Selected theo nhóm.\n"
-            "- Copy Cell / Paste Cell dùng ô đang chọn.\n\n"
+            "- Copy / Paste are in Grid Tools and use the selected cell.\n\n"
             "Gate / Tray\n"
             "- Click vào bất kỳ vị trí nào trong cột gate để chọn gate; click tray để chọn tray.\n"
             "- Ctrl/Shift-click để chọn nhiều gate hoặc nhiều tray cùng lúc.\n"
@@ -590,7 +713,7 @@ class BallDropLevelEditor(tk.Tk):
     def sync_basic_fields(self):
         self.level["gameMode"] = self.game_mode_var.get()
         self.level["difficulty"] = self.difficulty_var.get()
-        self.level["level"] = safe_int(str(self.level_var.get()), 1)
+        self.level["level"] = self.current_level_id()
         self.level["category"] = safe_int(str(self.category_var.get()), 0)
         self.level["time"] = safe_int(str(self.time_var.get()), 60)
         self.level["levelName"] = self.level_name_var.get().strip() or "New Level"
@@ -1774,7 +1897,7 @@ class BallDropLevelEditor(tk.Tk):
         self.cols_var.set(grid.get("columns", 4))
         self.game_mode_var.set(self.level.get("gameMode", "Classic"))
         self.difficulty_var.set(self.level.get("difficulty", "Normal"))
-        self.level_var.set(self.level.get("level", 1))
+        self.level_var.set(str(self.level.get("level", 1)))
         self.category_var.set(self.level.get("category", 0))
         self.time_var.set(self.level.get("time", 60))
         self.level_name_var.set(self.level.get("levelName", "New Level"))
@@ -1787,6 +1910,7 @@ class BallDropLevelEditor(tk.Tk):
         self.refresh_gate_ui()
         self.refresh_gate_text()
         self.refresh_json_preview()
+        self._refresh_level_folder_files()
 
     def _refresh_grid_buttons(self):
         for child in self.grid_inner.winfo_children():
