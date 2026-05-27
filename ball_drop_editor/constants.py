@@ -1,20 +1,30 @@
 from __future__ import annotations
 
 BALL_COLORS = [
-    "None", "Red", "Blue", "Yellow", "Green", "Purple",
-    "Cyan", "Orange", "Pink", "Wild"
+    "None", "Black", "Blue", "Brown", "Cyan", "Gray", "Green",
+    "LightPink", "Lime", "Orange", "Periwinkle", "Pink", "Purple",
+    "Red", "Teal", "Violet", "White", "Yellow", "Wild"
 ]
 
 COLOR_HEX = {
     "None": "#BBBBBB",
-    "Red": "#E74C3C",
-    "Blue": "#3498DB",
-    "Yellow": "#F1C40F",
-    "Green": "#2ECC71",
-    "Purple": "#9B59B6",
-    "Cyan": "#00BCD4",
-    "Orange": "#E67E22",
-    "Pink": "#FF7EB6",
+    "Black": "#2E2D33",
+    "Blue": "#3361FA",
+    "Brown": "#6B4A2D",
+    "Cyan": "#32E0F1",
+    "Gray": "#788CB1",
+    "Green": "#18DE37",
+    "LightPink": "#FFB6C1",
+    "Lime": "#B1ED19",
+    "Orange": "#FF8122",
+    "Periwinkle": "#9DB2FD",
+    "Pink": "#FA68BD",
+    "Purple": "#9851F5",
+    "Red": "#FF4A50",
+    "Teal": "#12AF89",
+    "Violet": "#ED66FF",
+    "White": "#DBDCDC",
+    "Yellow": "#FFE10C",
     "Wild": "#FFFFFF",
 }
 

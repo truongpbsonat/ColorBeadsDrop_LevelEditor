@@ -159,8 +159,6 @@ class BallDropLevelEditor(tk.Tk):
         self.brush_hidden_modifier = tk.BooleanVar(value=False)
         self.brush_ice_modifier = tk.BooleanVar(value=False)
         self.brush_ice_hp = tk.IntVar(value=1)
-        self.brush_ice_can_click = tk.BooleanVar(value=False)
-        self.brush_ice_blocks_activation = tk.BooleanVar(value=True)
         self.tunnel_direction = tk.StringVar(value="Up")
         self.tunnel_queue = tk.StringVar(value="Blue:5, Red:5")
 
@@ -188,18 +186,6 @@ class BallDropLevelEditor(tk.Tk):
         self.ice_hp_label.pack(anchor="w")
         self.ice_hp_spin = ttk.Spinbox(modifier_frame, from_=1, to=999, textvariable=self.brush_ice_hp)
         self.ice_hp_spin.pack(fill="x", pady=2)
-        self.ice_can_click_check = ttk.Checkbutton(
-            modifier_frame,
-            text="Can click while frozen",
-            variable=self.brush_ice_can_click,
-        )
-        self.ice_can_click_check.pack(anchor="w")
-        self.ice_blocks_activation_check = ttk.Checkbutton(
-            modifier_frame,
-            text="Blocks activation",
-            variable=self.brush_ice_blocks_activation,
-        )
-        self.ice_blocks_activation_check.pack(anchor="w")
 
         self.tunnel_direction_label = ttk.Label(frame, text="Tunnel direction")
         self.tunnel_direction_label.pack(anchor="w")
@@ -232,8 +218,6 @@ class BallDropLevelEditor(tk.Tk):
             return
         state = "normal" if self.brush_ice_modifier.get() else "disabled"
         self.ice_hp_spin.configure(state=state)
-        self.ice_can_click_check.configure(state=state)
-        self.ice_blocks_activation_check.configure(state=state)
 
     def _build_grid_panel(self, parent):
         frame = ttk.LabelFrame(parent, text="Grid Size", padding=8)
@@ -1690,8 +1674,6 @@ class BallDropLevelEditor(tk.Tk):
             hidden=self.brush_hidden_modifier.get(),
             ice=self.brush_ice_modifier.get(),
             ice_hp=max(1, safe_int(str(self.brush_ice_hp.get()), 1)),
-            can_click_while_frozen=self.brush_ice_can_click.get(),
-            blocks_activation=self.brush_ice_blocks_activation.get(),
         )
 
     def _selected_shooter_data(self) -> List[Dict[str, Any]]:
@@ -1739,8 +1721,6 @@ class BallDropLevelEditor(tk.Tk):
         self.brush_ice_modifier.set(ice is not None)
         if ice is not None:
             self.brush_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
-            self.brush_ice_can_click.set(bool(ice.get("canClickWhileFrozen", False)))
-            self.brush_ice_blocks_activation.set(bool(ice.get("blocksActivation", True)))
         self.update_brush_modifier_state()
 
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:
