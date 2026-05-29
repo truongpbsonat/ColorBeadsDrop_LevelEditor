@@ -1,7 +1,7 @@
 {
   "gameMode": "Classic",
-  "difficulty": "Hard",
-  "level": 5,
+  "difficulty": "Normal",
+  "level": 9,
   "category": 0,
   "time": 60,
   "levelName": "New Level",
@@ -23,17 +23,13 @@
         "column": 1,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_0_1_0e7d",
+          "entityId": "entity_s_0_1_11e2",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_0_1_0e7d",
+            "shooterId": "s_0_1_11e2",
             "colorId": "Red",
             "capacity": 9,
-            "modifiers": [
-              {
-                "type": "Hidden"
-              }
-            ]
+            "modifiers": []
           }
         }
       },
@@ -72,23 +68,13 @@
         "column": 4,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_0_4_a395",
+          "entityId": "entity_s_0_4_cc46",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_0_4_a395",
+            "shooterId": "s_0_4_cc46",
             "colorId": "Purple",
             "capacity": 9,
-            "modifiers": [
-              {
-                "type": "Hidden"
-              },
-              {
-                "type": "Ice",
-                "hp": 15,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
-              }
-            ]
+            "modifiers": []
           }
         }
       },
@@ -181,13 +167,17 @@
         "column": 1,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_2_1_62f6",
+          "entityId": "entity_s_2_1_a91e",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_2_1_62f6",
+            "shooterId": "s_2_1_a91e",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -226,13 +216,17 @@
         "column": 4,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_2_4_2ea9",
+          "entityId": "entity_s_2_4_be11",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_2_4_2ea9",
+            "shooterId": "s_2_4_be11",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -325,13 +319,17 @@
         "column": 1,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_4_1_667f",
+          "entityId": "entity_s_4_1_99b1",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_4_1_667f",
+            "shooterId": "s_4_1_99b1",
             "colorId": "Purple",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -340,13 +338,17 @@
         "column": 2,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_4_2_7506",
+          "entityId": "entity_s_4_2_ff02",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_4_2_7506",
+            "shooterId": "s_4_2_ff02",
             "colorId": "Blue",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -355,13 +357,17 @@
         "column": 3,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_4_3_160f",
+          "entityId": "entity_s_4_3_b307",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_4_3_160f",
+            "shooterId": "s_4_3_b307",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -370,13 +376,17 @@
         "column": 4,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_4_4_a988",
+          "entityId": "entity_s_4_4_203f",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_4_4_a988",
+            "shooterId": "s_4_4_203f",
             "colorId": "Orange",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -385,13 +395,17 @@
         "column": 5,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_4_5_c4d5",
+          "entityId": "entity_s_4_5_25c4",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_4_5_c4d5",
+            "shooterId": "s_4_5_25c4",
             "colorId": "Red",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -409,13 +423,17 @@
         "column": 1,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_5_1_fc9a",
+          "entityId": "entity_s_5_1_ba28",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_5_1_fc9a",
+            "shooterId": "s_5_1_ba28",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -424,13 +442,17 @@
         "column": 2,
         "entity": {
           "type": "Shooter",
-          "entityId": "entity_s_5_2_6d39",
+          "entityId": "entity_s_5_2_226a",
           "blocksPath": true,
           "shooter": {
-            "shooterId": "s_5_2_6d39",
+            "shooterId": "s_5_2_226a",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },

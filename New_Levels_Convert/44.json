@@ -1,0 +1,719 @@
+{
+  "gameMode": "Classic",
+  "difficulty": "Normal",
+  "level": 44,
+  "category": 0,
+  "time": 60,
+  "levelName": "Level_44",
+  "grid": {
+    "rows": 5,
+    "columns": 4,
+    "cells": [
+      {
+        "row": 0,
+        "column": 0,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_0_0_qw47",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 0,
+        "column": 1,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_0_1_ys8m",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_0_1_ys8m",
+            "colorId": "Orange",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 0,
+        "column": 2,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_0_2_02kh",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_0_2_02kh",
+            "colorId": "Pink",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 0,
+        "column": 3,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_0_3_gjzn",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 1,
+        "column": 0,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_1_0_aa5k",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_1_0_aa5k",
+            "colorId": "Yellow",
+            "capacity": 9,
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 30,
+                "canClickWhileFrozen": false,
+                "blocksActivation": true
+              }
+            ]
+          }
+        }
+      },
+      {
+        "row": 1,
+        "column": 1,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_1_1_icwg",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_1_1_icwg",
+            "colorId": "Yellow",
+            "capacity": 9,
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 45,
+                "canClickWhileFrozen": false,
+                "blocksActivation": true
+              }
+            ]
+          }
+        }
+      },
+      {
+        "row": 1,
+        "column": 2,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_1_2_tpnl",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_1_2_tpnl",
+            "colorId": "Purple",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 1,
+        "column": 3,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_1_3_kajt",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 2,
+        "column": 0,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_2_0_57gu",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_2_0_57gu",
+            "colorId": "Blue",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 2,
+        "column": 1,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_2_1_cayl",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_2_1_cayl",
+            "colorId": "Orange",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 2,
+        "column": 2,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_2_2_pz1r",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_2_2_pz1r",
+            "colorId": "Purple",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 2,
+        "column": 3,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_2_3_tx0f",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 3,
+        "column": 0,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_3_0_siko",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 3,
+        "column": 1,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_3_1_t8jt",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_3_1_t8jt",
+            "colorId": "Red",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 3,
+        "column": 2,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_3_2_0cwq",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_3_2_0cwq",
+            "colorId": "Yellow",
+            "capacity": 9,
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 60,
+                "canClickWhileFrozen": false,
+                "blocksActivation": true
+              }
+            ]
+          }
+        }
+      },
+      {
+        "row": 3,
+        "column": 3,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_3_3_yvgl",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_3_3_yvgl",
+            "colorId": "Blue",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      },
+      {
+        "row": 4,
+        "column": 0,
+        "entity": {
+          "type": "Wall",
+          "entityId": "wall_4_0_mark",
+          "blocksPath": true
+        }
+      },
+      {
+        "row": 4,
+        "column": 1,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_4_1_c5i9",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_4_1_c5i9",
+            "colorId": "Orange",
+            "capacity": 9,
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 72,
+                "canClickWhileFrozen": false,
+                "blocksActivation": true
+              }
+            ]
+          }
+        }
+      },
+      {
+        "row": 4,
+        "column": 2,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_4_2_vxag",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_4_2_vxag",
+            "colorId": "Pink",
+            "capacity": 9,
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 78,
+                "canClickWhileFrozen": false,
+                "blocksActivation": true
+              }
+            ]
+          }
+        }
+      },
+      {
+        "row": 4,
+        "column": 3,
+        "entity": {
+          "type": "Shooter",
+          "entityId": "entity_s_4_3_833n",
+          "blocksPath": true,
+          "shooter": {
+            "shooterId": "s_4_3_833n",
+            "colorId": "Purple",
+            "capacity": 9,
+            "modifiers": []
+          }
+        }
+      }
+    ],
+    "obstacles": [],
+    "shooterGroups": []
+  },
+  "gateSystem": {
+    "gateCount": 4,
+    "maxVisibleTrayPerGate": 4,
+    "gates": [
+      {
+        "gateIndex": 0,
+        "trayQueue": [
+          {
+            "trayId": "t_dawx",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_dfde",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_dklx",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_rps6",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_zjdt",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_8zqr",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_92cj",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_gt8i",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_3szg",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_55w9",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_jq6z",
+            "layers": [
+              {
+                "colorId": "Red",
+                "requiredCount": 3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "gateIndex": 1,
+        "trayQueue": [
+          {
+            "trayId": "t_jbjq",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_cagr",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_ihrd",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_supe",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_zogp",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_hao6",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_9z1y",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_y4ni",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_9c6n",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_w6yu",
+            "layers": [
+              {
+                "colorId": "Red",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_tov2",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "gateIndex": 2,
+        "trayQueue": [
+          {
+            "trayId": "t_py30",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_qylj",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_ivqc",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_3h4p",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_qv2j",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_n6mz",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_pmsq",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_kly2",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_mkd4",
+            "layers": [
+              {
+                "colorId": "Red",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_h75f",
+            "layers": [
+              {
+                "colorId": "Pink",
+                "requiredCount": 3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "gateIndex": 3,
+        "trayQueue": [
+          {
+            "trayId": "t_4rfm",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_sh39",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_v6xs",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_tt6h",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_qcub",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_zvx4",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_sx6e",
+            "layers": [
+              {
+                "colorId": "Blue",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_2t8y",
+            "layers": [
+              {
+                "colorId": "Yellow",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_q62r",
+            "layers": [
+              {
+                "colorId": "Purple",
+                "requiredCount": 3
+              }
+            ]
+          },
+          {
+            "trayId": "t_vbgl",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
