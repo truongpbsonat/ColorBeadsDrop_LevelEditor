@@ -83,6 +83,7 @@ class BallDropLevelEditor(tk.Tk):
         self.level_name_var = tk.StringVar(value="New Level")
         self.level_folder_var = tk.StringVar(value=self._level_folder_label())
         self.level_file_status_var = tk.StringVar(value="No file loaded")
+        self.level_save_status_var = tk.StringVar(value="Status: Saved")
         self.rows_var = tk.IntVar(value=4)
         self.cols_var = tk.IntVar(value=4)
 
@@ -160,7 +161,7 @@ class BallDropLevelEditor(tk.Tk):
         frame.grid(row=0, column=0, sticky="ew")
         for col in range(18):
             frame.columnconfigure(col, weight=0)
-        frame.columnconfigure(17, weight=1)
+        frame.columnconfigure(16, weight=1)
 
         ttk.Button(frame, text="New", command=self.new_level, width=5).grid(row=0, column=0, padx=(0, 2), pady=1)
         ttk.Button(frame, text="Folder", command=self.choose_level_folder, width=7).grid(row=0, column=1, padx=2, pady=1)
@@ -183,7 +184,9 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Button(frame, text="Undo", command=self.undo, width=5).grid(row=0, column=11, padx=2, pady=1)
         ttk.Button(frame, text="Redo", command=self.redo, width=5).grid(row=0, column=12, padx=2, pady=1)
         ttk.Button(frame, text="Info", command=self.show_info, width=5).grid(row=0, column=13, padx=(2, 8), pady=1)
-        ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=14, columnspan=4, sticky="ew", pady=1)
+        ttk.Label(frame, textvariable=self.level_save_status_var, width=15, anchor="w").grid(row=0, column=14, padx=(0, 8), pady=1, sticky="w")
+        ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
+        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
 
     def _load_icon_images(self):
         if not os.path.isdir(ICON_DIR):
@@ -682,10 +685,17 @@ class BallDropLevelEditor(tk.Tk):
     def _mark_current_level_saved(self):
         self.sync_basic_fields()
         self.saved_level_snapshot = copy.deepcopy(self.level)
+        self._update_level_save_status()
 
     def has_unsaved_changes(self) -> bool:
         self.sync_basic_fields()
         return self.level != self.saved_level_snapshot
+
+    def _update_level_save_status(self):
+        if self.level != self.saved_level_snapshot:
+            self.level_save_status_var.set("Status: Modified")
+        else:
+            self.level_save_status_var.set("Status: Saved")
 
     def _confirm_discard_unsaved_changes(self, action: str) -> bool:
         if not self.has_unsaved_changes():
@@ -961,6 +971,11 @@ class BallDropLevelEditor(tk.Tk):
         self._update_selected_label()
         self._refresh_grid_button_states()
         self.refresh_json_preview()
+
+    def open_level_tester(self):
+        from .level_tester_app import open_level_tester
+
+        open_level_tester(self, self.level_folder)
 
     def show_info(self):
         messagebox.showinfo(
@@ -2633,6 +2648,7 @@ class BallDropLevelEditor(tk.Tk):
         return shooter_by_color, tray_by_color
 
     def mark_level_changed(self):
+        self._update_level_save_status()
         if not hasattr(self, "validation_summary"):
             return
         if not self.auto_validate_var.get():
