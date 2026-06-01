@@ -112,12 +112,6 @@
           "outputDirection": "Left",
           "shooterQueue": [
             {
-              "shooterId": "s_tunnel_a88af3",
-              "colorId": "Purple",
-              "capacity": 9,
-              "modifiers": []
-            },
-            {
               "shooterId": "s_tunnel_ae7c71",
               "colorId": "Purple",
               "capacity": 9,
