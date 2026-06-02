@@ -85,6 +85,9 @@ class BallDropLevelEditor(tk.Tk):
         self.mechanics_var = tk.StringVar(value="")
         self.level_folder_var = tk.StringVar(value=self._level_folder_label())
         self.level_file_status_var = tk.StringVar(value="No file loaded")
+        self.level_save_status_var = tk.StringVar(value="Status: Saved")
+        self.rows_var = tk.IntVar(value=4)
+        self.cols_var = tk.IntVar(value=4)
 
     def _level_folder_label(self) -> str:
         folder_name = os.path.basename(os.path.normpath(self.level_folder)) or self.level_folder
@@ -94,90 +97,107 @@ class BallDropLevelEditor(tk.Tk):
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=0)
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(0, weight=0)
+        self.rowconfigure(1, weight=1)
+
+        top = ttk.Frame(self, padding=(8, 8, 8, 0))
+        top.grid(row=0, column=0, columnspan=3, sticky="ew")
+        top.columnconfigure(0, weight=1)
+        self._build_toolbar(top)
 
         left = ttk.Frame(self, padding=8)
-        left.grid(row=0, column=0, sticky="ns")
-        right = ttk.Frame(self, padding=8)
-        right.grid(row=0, column=1, sticky="nsew")
-        right.rowconfigure(0, weight=1)
-        right.columnconfigure(0, weight=1)
-        validation_side = ttk.Frame(self, padding=(0, 8, 8, 8), width=340)
-        validation_side.grid(row=0, column=2, sticky="ns")
-        validation_side.grid_propagate(False)
-        validation_side.rowconfigure(0, weight=1)
-        validation_side.columnconfigure(0, weight=1)
+        left.grid(row=1, column=0, sticky="ns")
+        left.rowconfigure(0, weight=1)
+        left.columnconfigure(0, weight=1)
 
-        self._build_toolbar(left)
-        self._build_brush_panel(left)
-        self._build_grid_panel(left)
+        left_inner = self._build_scrollable_sidebar(left)
+        self._build_cell_editor(left_inner)
 
-        self.tabs = ttk.Notebook(right)
-        self.tabs.grid(row=0, column=0, sticky="nsew")
+        workspace = ttk.Frame(self, padding=(0, 8, 8, 8))
+        workspace.grid(row=1, column=1, sticky="nsew")
+        workspace.rowconfigure(0, weight=1)
+        workspace.columnconfigure(0, weight=7, minsize=560, uniform="workspace")
+        workspace.columnconfigure(1, weight=3, minsize=240, uniform="workspace")
 
-        self.grid_tab = ttk.Frame(self.tabs, padding=8)
-        self.gate_tab = ttk.Frame(self.tabs, padding=8)
-        self.json_tab = ttk.Frame(self.tabs, padding=8)
+        grid_workspace = ttk.Frame(workspace, padding=(0, 0, 4, 0))
+        gate_workspace = ttk.Frame(workspace, padding=(4, 0, 0, 0))
+        grid_workspace.grid(row=0, column=0, sticky="nsew")
+        gate_workspace.grid(row=0, column=1, sticky="nsew")
+        self._build_grid_editor(grid_workspace)
+        self._build_gate_editor(gate_workspace)
 
-        self.tabs.add(self.grid_tab, text="Grid")
-        self.tabs.add(self.gate_tab, text="Gate / Tray")
-        self.tabs.add(self.json_tab, text="JSON Preview")
+        utility_side = ttk.Frame(self, padding=(0, 8, 8, 8), width=300)
+        utility_side.grid(row=1, column=2, sticky="ns")
+        utility_side.grid_propagate(False)
+        utility_side.rowconfigure(0, weight=6)
+        utility_side.rowconfigure(1, weight=4)
+        utility_side.columnconfigure(0, weight=1)
+        self._build_validation_panel(utility_side)
 
-        self._build_grid_editor(self.grid_tab)
-        self._build_gate_editor(self.gate_tab)
-        self._build_json_preview(self.json_tab)
-        self._build_validation_panel(validation_side)
+        json_holder = ttk.LabelFrame(utility_side, text="JSON Preview", padding=6)
+        json_holder.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+        self._build_json_preview(json_holder)
+
+    def _build_scrollable_sidebar(self, parent):
+        self.left_canvas = tk.Canvas(parent, width=250, highlightthickness=0)
+        left_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.left_canvas.yview)
+        self.left_canvas.configure(yscrollcommand=left_scrollbar.set)
+        self.left_canvas.grid(row=0, column=0, sticky="ns")
+        left_scrollbar.grid(row=0, column=1, sticky="ns")
+
+        content = ttk.Frame(self.left_canvas)
+        window_id = self.left_canvas.create_window((0, 0), window=content, anchor="nw")
+        content.bind("<Configure>", lambda e: self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all")))
+        self.left_canvas.bind("<Configure>", lambda e: self.left_canvas.itemconfigure(window_id, width=e.width))
+        self.left_canvas.bind("<Enter>", lambda e: self.left_canvas.bind_all("<MouseWheel>", self._on_sidebar_mousewheel))
+        self.left_canvas.bind("<Leave>", lambda e: self.left_canvas.unbind_all("<MouseWheel>"))
+        return content
+
+    def _on_sidebar_mousewheel(self, event):
+        if not hasattr(self, "left_canvas"):
+            return
+        self.left_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def _build_toolbar(self, parent):
-        frame = ttk.LabelFrame(parent, text="File / Level", padding=8)
-        frame.pack(fill="x", pady=(0, 8))
+        frame = ttk.LabelFrame(parent, text="File / Level", padding=(6, 5))
+        frame.grid(row=0, column=0, sticky="ew")
+        for col in range(18):
+            frame.columnconfigure(col, weight=0)
+        frame.columnconfigure(16, weight=1)
 
-        file_row = ttk.Frame(frame)
-        file_row.pack(fill="x", pady=2)
-        ttk.Button(file_row, text="New", command=self.new_level).pack(side="left", fill="x", expand=True)
-        ttk.Button(file_row, text="Folder", command=self.choose_level_folder).pack(side="left", fill="x", expand=True, padx=(4, 0))
-        ttk.Label(frame, textvariable=self.level_folder_var, wraplength=220, justify="left").pack(fill="x", pady=(2, 6))
-
-        level_row = ttk.Frame(frame)
-        level_row.pack(fill="x", pady=2)
-        ttk.Label(level_row, text="File #", width=8).pack(side="left")
-        level_entry = ttk.Entry(level_row, textvariable=self.file_level_var, width=9)
-        level_entry.pack(side="left", fill="x", expand=True)
+        ttk.Button(frame, text="New", command=self.new_level, width=5).grid(row=0, column=0, padx=(0, 2), pady=1)
+        ttk.Button(frame, text="Folder", command=self.choose_level_folder, width=7).grid(row=0, column=1, padx=2, pady=1)
+        ttk.Button(frame, text="Prev", command=self.load_previous_level, width=5).grid(row=0, column=2, padx=2, pady=1)
+        level_entry = ttk.Entry(frame, textvariable=self.file_level_var, width=7)
+        level_entry.grid(row=0, column=3, padx=2, pady=1, sticky="w")
         level_entry.bind("<Return>", lambda e: self.load_selected_level())
+        ttk.Button(frame, text="Next", command=self.load_next_level, width=5).grid(row=0, column=4, padx=2, pady=1)
+        ttk.Button(frame, text="Load", command=self.load_selected_level, width=5).grid(row=0, column=5, padx=(2, 8), pady=1)
 
-        load_row = ttk.Frame(frame)
-        load_row.pack(fill="x", pady=2)
-        ttk.Button(load_row, text="Previous", command=self.load_previous_level).pack(side="left", fill="x", expand=True)
-        ttk.Button(load_row, text="Load", command=self.load_selected_level).pack(side="left", fill="x", expand=True, padx=4)
-        ttk.Button(load_row, text="Next", command=self.load_next_level).pack(side="left", fill="x", expand=True)
+        ttk.Label(frame, textvariable=self.level_folder_var, width=14, anchor="w").grid(row=0, column=6, padx=(4, 8), pady=1, sticky="w")
 
-        meta_row = ttk.Frame(frame)
-        meta_row.pack(fill="x", pady=(6, 2))
-        ttk.Label(meta_row, text="Difficulty", width=8).pack(side="left")
-        difficulty_combo = ttk.Combobox(meta_row, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=12)
-        difficulty_combo.pack(side="left", fill="x", expand=True)
+        ttk.Label(frame, text="Difficulty").grid(row=0, column=7, padx=(0, 3), pady=1, sticky="w")
+        difficulty_combo = ttk.Combobox(frame, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=10)
+        difficulty_combo.grid(row=0, column=8, padx=(0, 8), pady=1, sticky="w")
         difficulty_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh_json_preview())
 
-        mechanics_row = ttk.Frame(frame)
-        mechanics_row.pack(fill="x", pady=(6, 2))
-        ttk.Label(mechanics_row, text="Mechanics", width=8).pack(side="left")
-        mechanics_entry = ttk.Entry(mechanics_row, textvariable=self.mechanics_var)
-        mechanics_entry.pack(side="left", fill="x", expand=True)
+        ttk.Button(frame, text="Save", command=self.save_json, width=5).grid(row=0, column=9, padx=2, pady=1)
+        ttk.Button(frame, text="Save As", command=self.save_json_as, width=7).grid(row=0, column=10, padx=(2, 8), pady=1)
+        ttk.Button(frame, text="Undo", command=self.undo, width=5).grid(row=0, column=11, padx=2, pady=1)
+        ttk.Button(frame, text="Redo", command=self.redo, width=5).grid(row=0, column=12, padx=2, pady=1)
+        ttk.Button(frame, text="Info", command=self.show_info, width=5).grid(row=0, column=13, padx=(2, 8), pady=1)
+        ttk.Label(frame, textvariable=self.level_save_status_var, width=15, anchor="w").grid(row=0, column=14, padx=(0, 8), pady=1, sticky="w")
+        ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
+        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
+
+        ttk.Label(frame, text="Mechanics").grid(row=1, column=0, padx=(0, 3), pady=(5, 1), sticky="w")
+        mechanics_entry = ttk.Entry(frame, textvariable=self.mechanics_var)
+        mechanics_entry.grid(row=1, column=1, columnspan=5, padx=(0, 4), pady=(5, 1), sticky="ew")
         mechanics_entry.bind("<Return>", lambda e: self.refresh_json_preview())
         mechanics_entry.bind("<FocusOut>", lambda e: self.refresh_json_preview())
-        ttk.Button(frame, text="Auto-detect mechanics", command=self.auto_detect_mechanics).pack(fill="x", pady=(0, 4))
-
-        save_row = ttk.Frame(frame)
-        save_row.pack(fill="x", pady=2)
-        ttk.Button(save_row, text="Save", command=self.save_json).pack(side="left", fill="x", expand=True)
-        ttk.Button(save_row, text="Save As", command=self.save_json_as).pack(side="left", fill="x", expand=True, padx=(4, 0))
-        ttk.Label(frame, textvariable=self.level_file_status_var, wraplength=220, justify="left").pack(fill="x", pady=(2, 6))
-        ttk.Separator(frame).pack(fill="x", pady=6)
-        history_row = ttk.Frame(frame)
-        history_row.pack(fill="x", pady=2)
-        ttk.Button(history_row, text="Undo", command=self.undo).pack(side="left", fill="x", expand=True)
-        ttk.Button(history_row, text="Redo", command=self.redo).pack(side="left", fill="x", expand=True, padx=4)
-        ttk.Button(history_row, text="Info", command=self.show_info).pack(side="left", fill="x", expand=True)
+        ttk.Button(frame, text="Auto-detect mechanics", command=self.auto_detect_mechanics).grid(
+            row=1, column=6, columnspan=2, padx=(0, 8), pady=(5, 1), sticky="w"
+        )
 
     def _load_icon_images(self):
         if not os.path.isdir(ICON_DIR):
@@ -275,166 +295,28 @@ class BallDropLevelEditor(tk.Tk):
             activebackground="#E8F3FF",
         )
 
-    def _build_brush_panel(self, parent):
-        frame = ttk.LabelFrame(parent, text="Brush", padding=8)
-        frame.pack(fill="x", pady=(0, 8))
-
-        self.brush_type = tk.StringVar(value="Shooter")
-        self.brush_color = tk.StringVar(value="Blue")
-        self.brush_capacity = tk.IntVar(value=9)
-        self.brush_hidden_modifier = tk.BooleanVar(value=False)
-        self.brush_ice_modifier = tk.BooleanVar(value=False)
-        self.brush_ice_hp = tk.IntVar(value=1)
-        self.tunnel_direction = tk.StringVar(value="Up")
-        self.tunnel_queue = tk.StringVar(value="Blue:5, Red:5")
-
-        ttk.Label(frame, text="Entity").pack(anchor="w")
-        entity_buttons = ttk.Frame(frame)
-        entity_buttons.pack(fill="x", pady=2)
-        entity_icons = {
-            "Shooter": self.icon_images.get("Shooter"),
-            "Wall": self.icon_images.get("Wall"),
-            "Tunnel": self.icon_images.get("Tunnel"),
-        }
-        for index, entity_type in enumerate(ENTITY_TYPES):
-            button = self._choice_button(
-                entity_buttons,
-                "brush_type",
-                self.brush_type,
-                entity_type,
-                entity_type,
-                command=self.update_brush_tunnel_state,
-                image=entity_icons.get(entity_type),
-                width=10,
-                compound="top",
-            )
-            button.grid(row=index // 2, column=index % 2, sticky="ew", padx=2, pady=2)
-            entity_buttons.columnconfigure(index % 2, weight=1)
-
-        ttk.Label(frame, text="Shooter color").pack(anchor="w")
-        color_buttons = ttk.Frame(frame)
-        color_buttons.pack(fill="x", pady=2)
-        for index, color in enumerate(BALL_COLORS[1:]):
-            bg = COLOR_HEX.get(color, "#DDDDDD")
-            fg = "#000000" if color in ["White", "Yellow", "Wild", "Cyan", "Lime", "LightPink", "Pink"] else "#FFFFFF"
-            button = self._choice_button(
-                color_buttons,
-                "brush_color",
-                self.brush_color,
-                color,
-                "",
-                width=2,
-                height=1,
-                normal_bg=bg,
-                normal_fg=fg,
-            )
-            button.grid(row=index // 5, column=index % 5, padx=2, pady=2)
-            color_buttons.columnconfigure(index % 5, weight=1)
-
-        ttk.Label(frame, text="Capacity").pack(anchor="w")
-        ttk.Spinbox(frame, from_=1, to=999, textvariable=self.brush_capacity).pack(fill="x", pady=2)
-
-        modifier_frame = ttk.LabelFrame(frame, text="Shooter modifiers", padding=6)
-        modifier_frame.pack(fill="x", pady=(6, 2))
-        modifier_buttons = ttk.Frame(modifier_frame)
-        modifier_buttons.pack(anchor="w")
-        self._toggle_button(modifier_buttons, "Hidden", self.brush_hidden_modifier).pack(side="left")
-        self._toggle_button(
-            modifier_buttons,
-            "Ice",
-            self.brush_ice_modifier,
-            command=self.update_brush_modifier_state,
-        ).pack(side="left", padx=(6, 0))
-        self.ice_hp_label = ttk.Label(modifier_frame, text="Ice HP")
-        self.ice_hp_label.pack(anchor="w")
-        self.ice_hp_spin = ttk.Spinbox(modifier_frame, from_=1, to=999, textvariable=self.brush_ice_hp)
-        self.ice_hp_spin.pack(fill="x", pady=2)
-
-        self.tunnel_direction_label = ttk.Label(frame, text="Tunnel direction")
-        self.tunnel_direction_label.pack(anchor="w")
-        self.tunnel_direction_buttons = ttk.Frame(frame)
-        self.tunnel_direction_buttons.pack(fill="x", pady=2)
-        direction_labels = {"Up": "Up", "Down": "Down", "Left": "Left", "Right": "Right"}
-        for index, direction in enumerate(DIRECTIONS):
-            button = self._choice_button(
-                self.tunnel_direction_buttons,
-                "brush_tunnel_direction",
-                self.tunnel_direction,
-                direction,
-                direction_labels.get(direction, direction),
-                width=8,
-            )
-            button.grid(row=index // 2, column=index % 2, sticky="ew", padx=2, pady=2)
-            self.tunnel_direction_buttons.columnconfigure(index % 2, weight=1)
-
-        self.tunnel_queue_label = ttk.Label(frame, text="Tunnel queue")
-        self.tunnel_queue_label.pack(anchor="w")
-        self.tunnel_queue_entry = ttk.Entry(frame, textvariable=self.tunnel_queue)
-        self.tunnel_queue_entry.pack(fill="x", pady=2)
-
-        ttk.Button(frame, text="Apply to selected cell", command=self.apply_brush_to_selected).pack(fill="x", pady=(8, 2))
-        ttk.Button(frame, text="Clear selected cell", command=self.clear_selected_cell).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Apply modifiers to selected", command=self.apply_modifiers_to_selected_shooters).pack(fill="x", pady=(8, 2))
-        ttk.Button(frame, text="Remove modifiers from selected", command=self.remove_modifiers_from_selected_shooters).pack(fill="x", pady=2)
-        ttk.Button(frame, text="Load selected modifiers", command=self.load_selected_shooter_modifiers).pack(fill="x", pady=2)
-        self._refresh_choice_group("brush_type")
-        self._refresh_choice_group("brush_color")
-        self._refresh_choice_group("brush_tunnel_direction")
-        self.update_brush_tunnel_state()
-        self.update_brush_modifier_state()
-
-    def update_brush_tunnel_state(self):
-        if not hasattr(self, "tunnel_queue_entry"):
-            return
-        state = "normal" if self.brush_type.get() == "Tunnel" else "disabled"
-        entry_state = "normal" if self.brush_type.get() == "Tunnel" else "disabled"
-        self._set_choice_group_state("brush_tunnel_direction", state)
-        self.tunnel_queue_entry.configure(state=entry_state)
-
-    def update_brush_modifier_state(self):
-        if not hasattr(self, "ice_hp_spin"):
-            return
-        state = "normal" if self.brush_ice_modifier.get() else "disabled"
-        self.ice_hp_spin.configure(state=state)
-
-    def _build_grid_panel(self, parent):
-        frame = ttk.LabelFrame(parent, text="Grid Size", padding=8)
-        frame.pack(fill="x", pady=(0, 8))
-
-        self.rows_var = tk.IntVar(value=4)
-        self.cols_var = tk.IntVar(value=4)
-
-        row = ttk.Frame(frame)
-        row.pack(fill="x", pady=2)
-        ttk.Label(row, text="Rows", width=8).pack(side="left")
-        ttk.Spinbox(row, from_=1, to=20, textvariable=self.rows_var, width=7).pack(side="left")
-
-        row = ttk.Frame(frame)
-        row.pack(fill="x", pady=2)
-        ttk.Label(row, text="Columns", width=8).pack(side="left")
-        ttk.Spinbox(row, from_=1, to=20, textvariable=self.cols_var, width=7).pack(side="left")
-
-        ttk.Button(frame, text="Resize/Rebuild", command=self.resize_grid).pack(fill="x", pady=(8, 2))
-
     def _build_grid_editor(self, parent):
         parent.rowconfigure(2, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        tools = ttk.LabelFrame(parent, text="Grid Tools", padding=8)
-        tools.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        tools.columnconfigure(8, weight=1)
+        tools = ttk.LabelFrame(parent, text="Grid Tools", padding=4)
+        tools.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        tools.columnconfigure(12, weight=1)
         self.grid_paint_on_click_var = tk.BooleanVar(value=False)
         self.grid_right_clear_var = tk.BooleanVar(value=False)
         self.grid_multi_shooter_select_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(tools, text="Paint on click", variable=self.grid_paint_on_click_var).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(tools, text="Right click clears", variable=self.grid_right_clear_var).grid(row=0, column=1, sticky="w", padx=(12, 0))
-        ttk.Checkbutton(tools, text="Multi shooter select", variable=self.grid_multi_shooter_select_var).grid(row=0, column=2, sticky="w", padx=(12, 0))
-        ttk.Button(tools, text="Paint Selected", command=self.apply_brush_to_selected).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(tools, text="Clear Selected", command=self.clear_selected_cell).grid(row=1, column=1, sticky="w", padx=(12, 0), pady=(8, 0))
-        ttk.Button(tools, text="Copy", command=self.copy_selected_cell).grid(row=1, column=2, sticky="w", padx=(12, 0), pady=(8, 0))
-        ttk.Button(tools, text="Paste", command=self.paste_selected_cell).grid(row=1, column=3, sticky="w", padx=(12, 0), pady=(8, 0))
-
-        self._build_cell_editor(parent)
+        ttk.Checkbutton(tools, text="Paint", variable=self.grid_paint_on_click_var).grid(row=0, column=0, sticky="w", padx=(0, 4))
+        ttk.Checkbutton(tools, text="RClear", variable=self.grid_right_clear_var).grid(row=0, column=1, sticky="w", padx=(0, 4))
+        ttk.Checkbutton(tools, text="Multi", variable=self.grid_multi_shooter_select_var).grid(row=0, column=2, sticky="w", padx=(0, 6))
+        ttk.Button(tools, text="Paint", command=self.apply_brush_to_selected, width=6).grid(row=0, column=3, sticky="w", padx=1)
+        ttk.Button(tools, text="Clear", command=self.clear_selected_cell, width=6).grid(row=0, column=4, sticky="w", padx=1)
+        ttk.Button(tools, text="Copy", command=self.copy_selected_cell, width=5).grid(row=0, column=5, sticky="w", padx=1)
+        ttk.Button(tools, text="Paste", command=self.paste_selected_cell, width=5).grid(row=0, column=6, sticky="w", padx=(1, 6))
+        ttk.Label(tools, text="R").grid(row=0, column=7, sticky="w", padx=(0, 2))
+        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.rows_var, width=4).grid(row=0, column=8, sticky="w")
+        ttk.Label(tools, text="C").grid(row=0, column=9, sticky="w", padx=(4, 2))
+        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.cols_var, width=4).grid(row=0, column=10, sticky="w")
+        ttk.Button(tools, text="Resize", command=self.resize_grid, width=6).grid(row=0, column=11, sticky="w", padx=(4, 0))
 
         grid_area = ttk.Frame(parent)
         grid_area.grid(row=2, column=0, sticky="nsew")
@@ -482,8 +364,8 @@ class BallDropLevelEditor(tk.Tk):
         controls.columnconfigure(1, weight=1)
 
     def _build_cell_editor(self, parent):
-        frame = ttk.LabelFrame(parent, text="Cell Editor", padding=8)
-        frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        frame = ttk.LabelFrame(parent, text="Cell Tool", padding=8)
+        frame.pack(fill="x", pady=(0, 8))
         frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=0)
 
@@ -518,8 +400,9 @@ class BallDropLevelEditor(tk.Tk):
                 width=10,
                 compound="top",
             )
-            button.grid(row=0, column=index, sticky="ew", padx=2, pady=2)
-            entity_frame.columnconfigure(index, weight=1)
+            button.grid(row=index // 2, column=index % 2, sticky="nsew", padx=2, pady=2)
+            entity_frame.rowconfigure(index // 2, weight=1, uniform="entity_rows")
+            entity_frame.columnconfigure(index % 2, weight=1, uniform="entity_cols")
 
         shooter_frame = ttk.LabelFrame(frame, text="Shooter fields", padding=6)
         shooter_frame.grid(row=2, column=0, sticky="ew", pady=(6, 0))
@@ -542,8 +425,8 @@ class BallDropLevelEditor(tk.Tk):
                 normal_bg=bg,
                 normal_fg=fg,
             )
-            button.grid(row=index // 9, column=index % 9, padx=2, pady=2)
-            edit_color_buttons.columnconfigure(index % 9, weight=1)
+            button.grid(row=index // 5, column=index % 5, padx=2, pady=2)
+            edit_color_buttons.columnconfigure(index % 5, weight=1)
 
         capacity_row = ttk.Frame(shooter_frame)
         capacity_row.grid(row=1, column=0, sticky="w", pady=(6, 0))
@@ -559,28 +442,41 @@ class BallDropLevelEditor(tk.Tk):
         self.cell_edit_capacity_spin.pack(side="left", padx=(6, 18))
         self.cell_edit_capacity_spin.bind("<Return>", self.auto_apply_cell_editor)
         self.cell_edit_capacity_spin.bind("<FocusOut>", self.auto_apply_cell_editor)
-        self._toggle_button(capacity_row, "Hidden", self.cell_edit_hidden_modifier, command=self.auto_apply_cell_editor).pack(side="left")
+
+        modifier_frame = ttk.LabelFrame(frame, text="Modifiers", padding=6)
+        modifier_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        modifier_frame.columnconfigure(0, weight=1, uniform="modifier_cols")
+        modifier_frame.columnconfigure(1, weight=1, uniform="modifier_cols")
         self._toggle_button(
-            capacity_row,
-            text="Ice",
-            variable=self.cell_edit_ice_modifier,
-            command=self.on_cell_editor_modifier_change,
-        ).pack(side="left", padx=(6, 0))
-        ttk.Label(capacity_row, text="Ice HP").pack(side="left", padx=(12, 4))
+            modifier_frame,
+            "Hidden",
+            self.cell_edit_hidden_modifier,
+            command=lambda: self.apply_modifier_button_change("Hidden"),
+        ).grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
+        self._toggle_button(
+            modifier_frame,
+            "Ice",
+            self.cell_edit_ice_modifier,
+            command=lambda: self.apply_modifier_button_change("Ice"),
+        ).grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
+
+        ice_hp_row = ttk.Frame(modifier_frame)
+        ice_hp_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Label(ice_hp_row, text="Ice HP").pack(side="left")
         self.cell_edit_ice_hp_spin = ttk.Spinbox(
-            capacity_row,
+            ice_hp_row,
             from_=1,
             to=999,
             textvariable=self.cell_edit_ice_hp,
             width=8,
-            command=self.auto_apply_cell_editor,
+            command=self.apply_ice_hp_change,
         )
-        self.cell_edit_ice_hp_spin.pack(side="left")
-        self.cell_edit_ice_hp_spin.bind("<Return>", self.auto_apply_cell_editor)
-        self.cell_edit_ice_hp_spin.bind("<FocusOut>", self.auto_apply_cell_editor)
+        self.cell_edit_ice_hp_spin.pack(side="left", padx=(6, 0))
+        self.cell_edit_ice_hp_spin.bind("<Return>", self.apply_ice_hp_change)
+        self.cell_edit_ice_hp_spin.bind("<FocusOut>", self.apply_ice_hp_change)
 
         tunnel_frame = ttk.LabelFrame(frame, text="Tunnel direction", padding=6)
-        tunnel_frame.grid(row=2, column=1, sticky="n", padx=(10, 0), pady=(6, 0))
+        tunnel_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         for index, direction in enumerate(DIRECTIONS):
             button = self._choice_button(
                 tunnel_frame,
@@ -589,13 +485,14 @@ class BallDropLevelEditor(tk.Tk):
                 direction,
                 direction,
                 command=self.auto_apply_cell_editor,
-                width=8,
+                width=5,
             )
-            button.grid(row=index // 2, column=index % 2, sticky="ew", padx=2, pady=2)
+            button.grid(row=0, column=index, sticky="ew", padx=2, pady=2)
+            tunnel_frame.columnconfigure(index, weight=1, uniform="direction_cols")
 
         action_frame = ttk.Frame(frame)
-        action_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ttk.Button(action_frame, text="Remove Modifiers", command=self.remove_cell_editor_modifiers).pack(side="left", padx=(8, 0))
+        action_frame.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ttk.Button(action_frame, text="Remove Modifiers", command=self.remove_cell_editor_modifiers).pack(side="left")
 
         self._refresh_choice_group("cell_edit_entity")
         self._refresh_choice_group("cell_edit_color")
@@ -606,20 +503,20 @@ class BallDropLevelEditor(tk.Tk):
         parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        top = ttk.LabelFrame(parent, text="Gate System", padding=8)
-        top.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        top.columnconfigure(5, weight=1)
+        top = ttk.LabelFrame(parent, text="Gate System", padding=4)
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        top.columnconfigure(4, weight=1)
 
         self.gate_count_var = tk.IntVar(value=4)
         self.max_visible_var = tk.IntVar(value=4)
 
         ttk.Label(top, text="Gate Count").grid(row=0, column=0, sticky="w")
-        ttk.Spinbox(top, from_=1, to=12, textvariable=self.gate_count_var, width=8).grid(row=0, column=1, sticky="w", padx=6)
-        ttk.Label(top, text="Max Visible Tray / Gate").grid(row=0, column=2, sticky="w", padx=(12, 0))
-        ttk.Spinbox(top, from_=1, to=10, textvariable=self.max_visible_var, width=8).grid(row=0, column=3, sticky="w", padx=6)
+        ttk.Spinbox(top, from_=1, to=12, textvariable=self.gate_count_var, width=4).grid(row=0, column=1, sticky="w", padx=(3, 6))
+        ttk.Label(top, text="Max Tray").grid(row=0, column=2, sticky="w")
+        ttk.Spinbox(top, from_=1, to=10, textvariable=self.max_visible_var, width=4).grid(row=0, column=3, sticky="w", padx=(3, 6))
 
-        ttk.Button(top, text="Apply gate count", command=self.apply_gate_system).grid(row=0, column=4, padx=8)
-        ttk.Button(top, text="Refresh Gate", command=self.apply_gate_ui).grid(row=0, column=5, sticky="e", padx=(8, 0))
+        ttk.Button(top, text="Apply Count", command=self.apply_gate_system, width=11).grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 0))
+        ttk.Button(top, text="Refresh Gate", command=self.apply_gate_ui, width=12).grid(row=1, column=2, columnspan=2, sticky="w", padx=(4, 0), pady=(3, 0))
 
         preview_holder = ttk.LabelFrame(parent, text="Gate Direct Edit", padding=8)
         preview_holder.grid(row=1, column=0, sticky="nsew")
@@ -644,65 +541,59 @@ class BallDropLevelEditor(tk.Tk):
 
         self._build_gate_direct_controls(preview_holder)
 
-        text_tools = ttk.LabelFrame(parent, text="Text Import / Export", padding=8)
-        text_tools.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        text_tools = ttk.LabelFrame(parent, text="Text Import / Export", padding=4)
+        text_tools.grid(row=2, column=0, sticky="ew", pady=(6, 0))
         text_tools.columnconfigure(0, weight=1)
-        self.gate_text = tk.Text(text_tools, height=6, wrap="none", font=("Consolas", 10))
+        self.gate_text = tk.Text(text_tools, height=3, wrap="none", font=("Consolas", 10))
         self.gate_text.grid(row=0, column=0, sticky="ew")
         btns = ttk.Frame(text_tools)
-        btns.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(btns, text="Parse Text", command=self.apply_gate_text).pack(side="left")
-        ttk.Button(btns, text="Reload Text", command=self.refresh_gate_text).pack(side="left", padx=8)
+        btns.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        ttk.Button(btns, text="Parse Text", command=self.apply_gate_text, width=10).pack(side="left")
+        ttk.Button(btns, text="Reload Text", command=self.refresh_gate_text, width=11).pack(side="left", padx=4)
 
     def _build_gate_direct_controls(self, parent):
-        controls = ttk.Frame(parent, padding=(0, 8, 0, 0))
+        controls = ttk.Frame(parent, padding=(0, 6, 0, 0))
         controls.grid(row=1, column=0, sticky="ew")
-        controls.columnconfigure(6, weight=1)
+        controls.columnconfigure(0, weight=1)
 
         self.gate_selection_label = ttk.Label(controls, text="Selected: Gate 0")
-        self.gate_selection_label.grid(row=0, column=0, columnspan=10, sticky="w", pady=(0, 6))
+        self.gate_selection_label.grid(row=0, column=0, sticky="w", pady=(0, 4))
         self.add_layer_enabled_var = tk.BooleanVar(value=False)
-
-        ttk.Button(controls, text="+ Tray", command=self.add_tray_to_selected_gate).grid(row=1, column=0, padx=(0, 4), pady=2)
-        ttk.Button(controls, text="Up", command=lambda: self.move_selected_tray(-1)).grid(row=1, column=1, padx=4, pady=2)
-        ttk.Button(controls, text="Down", command=lambda: self.move_selected_tray(1)).grid(row=1, column=2, padx=4, pady=2)
-        ttk.Button(controls, text="Delete Tray", command=self.remove_selected_tray).grid(row=1, column=3, padx=4, pady=2)
-        ttk.Button(controls, text="Gate Left", command=lambda: self.move_selected_gate(-1)).grid(row=1, column=4, padx=(12, 4), pady=2)
-        ttk.Button(controls, text="Gate Right", command=lambda: self.move_selected_gate(1)).grid(row=1, column=5, padx=4, pady=2)
-
-        ttk.Label(controls, text="Tray ID").grid(row=2, column=0, sticky="w", pady=(8, 0))
         self.selected_tray_id_var = tk.StringVar()
-        tray_id_entry = ttk.Entry(controls, textvariable=self.selected_tray_id_var, width=18)
-        tray_id_entry.grid(row=2, column=1, columnspan=2, sticky="w", padx=(4, 12), pady=(8, 0))
-        tray_id_entry.bind("<Return>", lambda e: self.apply_selected_tray_fields())
-        tray_id_entry.bind("<FocusOut>", lambda e: self.apply_selected_tray_fields())
 
-        layer_controls = ttk.Frame(controls)
-        layer_controls.grid(row=1, column=7, rowspan=2, sticky="e", padx=(18, 0))
+        tray_buttons = ttk.Frame(controls)
+        tray_buttons.grid(row=1, column=0, sticky="ew")
+        ttk.Button(tray_buttons, text="+ Tray", command=self.add_tray_to_selected_gate, width=7).pack(side="left", padx=(0, 3), pady=1)
+        ttk.Button(tray_buttons, text="Up", command=lambda: self.move_selected_tray(-1), width=5).pack(side="left", padx=3, pady=1)
+        ttk.Button(tray_buttons, text="Down", command=lambda: self.move_selected_tray(1), width=6).pack(side="left", padx=3, pady=1)
+        ttk.Button(tray_buttons, text="Delete Tray", command=self.remove_selected_tray, width=10).pack(side="left", padx=3, pady=1)
 
-        self.add_layer_button = ttk.Button(layer_controls, text="+ Layer", command=self.add_layer_to_selected_tray, state="disabled")
-        self.add_layer_button.grid(row=0, column=0, padx=(0, 4), pady=2)
-        ttk.Button(layer_controls, text="Delete Layer", command=self.remove_selected_layer).grid(row=0, column=1, padx=4, pady=2)
-        ttk.Checkbutton(layer_controls, text="Enable +Layer", variable=self.add_layer_enabled_var, command=self.update_add_layer_button_state).grid(row=0, column=2, sticky="w", padx=(8, 0), pady=2)
+        gate_layer_buttons = ttk.Frame(controls)
+        gate_layer_buttons.grid(row=2, column=0, sticky="ew", pady=(3, 0))
+        ttk.Button(gate_layer_buttons, text="Gate Left", command=lambda: self.move_selected_gate(-1), width=9).pack(side="left", padx=(0, 3), pady=1)
+        ttk.Button(gate_layer_buttons, text="Gate Right", command=lambda: self.move_selected_gate(1), width=10).pack(side="left", padx=3, pady=1)
+        self.add_layer_button = ttk.Button(gate_layer_buttons, text="+ Layer", command=self.add_layer_to_selected_tray, state="disabled", width=8)
+        self.add_layer_button.pack(side="left", padx=3, pady=1)
+        ttk.Button(gate_layer_buttons, text="Delete Layer", command=self.remove_selected_layer, width=12).pack(side="left", padx=3, pady=1)
+        ttk.Checkbutton(gate_layer_buttons, text="Enable Add", variable=self.add_layer_enabled_var, command=self.update_add_layer_button_state).pack(side="left", padx=(3, 0), pady=1)
 
-        ttk.Label(layer_controls, text="Layer").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        layer_fields = ttk.Frame(controls)
+        layer_fields.grid(row=3, column=0, sticky="ew", pady=(3, 0))
+        ttk.Label(layer_fields, text="Layer").pack(side="left")
         self.selected_layer_var = tk.IntVar(value=0)
-        layer_spin = ttk.Spinbox(layer_controls, from_=0, to=0, textvariable=self.selected_layer_var, width=5, command=self.select_layer_from_control)
-        layer_spin.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(8, 0))
+        layer_spin = ttk.Spinbox(layer_fields, from_=0, to=0, textvariable=self.selected_layer_var, width=4, command=self.select_layer_from_control)
+        layer_spin.pack(side="left", padx=(3, 10))
         layer_spin.bind("<Return>", lambda e: self.select_layer_from_control())
         layer_spin.bind("<FocusOut>", lambda e: self.select_layer_from_control())
         self.selected_layer_spin = layer_spin
 
-        ttk.Label(layer_controls, text="Color").grid(row=1, column=2, sticky="w", pady=(8, 0))
         self.selected_layer_color_var = tk.StringVar(value="Blue")
-        color_combo = ttk.Combobox(layer_controls, textvariable=self.selected_layer_color_var, values=BALL_COLORS[1:], state="readonly", width=12)
-        color_combo.grid(row=1, column=3, sticky="w", padx=(4, 12), pady=(8, 0))
-        color_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_selected_layer_fields())
+        ttk.Label(layer_fields, text="Color: Tool").pack(side="left", padx=(0, 10))
 
-        ttk.Label(layer_controls, text="Count").grid(row=1, column=4, sticky="w", pady=(8, 0))
+        ttk.Label(layer_fields, text="Count").pack(side="left")
         self.selected_layer_count_var = tk.IntVar(value=3)
-        count_spin = ttk.Spinbox(layer_controls, from_=1, to=999, textvariable=self.selected_layer_count_var, width=7, command=self.apply_selected_layer_fields)
-        count_spin.grid(row=1, column=5, sticky="w", padx=(4, 0), pady=(8, 0))
+        count_spin = ttk.Spinbox(layer_fields, from_=1, to=999, textvariable=self.selected_layer_count_var, width=5, command=self.apply_selected_layer_fields)
+        count_spin.pack(side="left", padx=(3, 0))
         count_spin.bind("<Return>", lambda e: self.apply_selected_layer_fields())
         count_spin.bind("<FocusOut>", lambda e: self.apply_selected_layer_fields())
 
@@ -720,7 +611,7 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Button(parent, text="Refresh Preview", command=self.refresh_json_preview).grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
     def _build_validation_panel(self, parent):
-        parent.rowconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=6)
         parent.columnconfigure(0, weight=1)
         frame = ttk.LabelFrame(parent, text="Validate", padding=8)
         frame.grid(row=0, column=0, sticky="nsew")
@@ -733,23 +624,23 @@ class BallDropLevelEditor(tk.Tk):
             bg="#4B5563",
             fg="#FFFFFF",
             padx=8,
-            pady=6,
+            pady=4,
             anchor="w",
         )
-        self.validation_summary.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        self.validation_summary.grid(row=0, column=0, sticky="ew", pady=(0, 4))
 
         actions = ttk.Frame(frame)
-        actions.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        actions.grid(row=1, column=0, sticky="ew", pady=(0, 4))
         actions.columnconfigure(1, weight=1)
         self.auto_validate_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(actions, text="Auto check", variable=self.auto_validate_var, command=self.mark_level_changed).grid(row=0, column=0, sticky="w")
         ttk.Button(actions, text="Check Now", command=self.validate_level).grid(row=0, column=1, sticky="e")
 
         balance_frame = ttk.LabelFrame(frame, text="Color Balance", padding=4)
-        balance_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        balance_frame.grid(row=2, column=0, sticky="ew", pady=(0, 4))
         balance_frame.columnconfigure(0, weight=1)
         columns = ("color", "shooter", "tray", "delta")
-        self.color_balance_tree = ttk.Treeview(balance_frame, columns=columns, show="headings", height=10)
+        self.color_balance_tree = ttk.Treeview(balance_frame, columns=columns, show="headings", height=5)
         for key, title, width in [
             ("color", "Color", 78),
             ("shooter", "Shooter", 70),
@@ -774,6 +665,7 @@ class BallDropLevelEditor(tk.Tk):
             fg="#E5E7EB",
             insertbackground="#E5E7EB",
             state="disabled",
+            height=8,
         )
         self.validation_text.grid(row=3, column=0, sticky="nsew")
         self.validation_text.tag_configure("error_header", foreground="#FFFFFF", background="#B91C1C", spacing1=6, spacing3=4)
@@ -804,10 +696,17 @@ class BallDropLevelEditor(tk.Tk):
     def _mark_current_level_saved(self):
         self.sync_basic_fields()
         self.saved_level_snapshot = copy.deepcopy(self.level)
+        self._update_level_save_status()
 
     def has_unsaved_changes(self) -> bool:
         self.sync_basic_fields()
         return self.level != self.saved_level_snapshot
+
+    def _update_level_save_status(self):
+        if self.level != self.saved_level_snapshot:
+            self.level_save_status_var.set("Status: Modified")
+        else:
+            self.level_save_status_var.set("Status: Saved")
 
     def _confirm_discard_unsaved_changes(self, action: str) -> bool:
         if not self.has_unsaved_changes():
@@ -1086,6 +985,11 @@ class BallDropLevelEditor(tk.Tk):
         self._refresh_grid_button_states()
         self.refresh_json_preview()
 
+    def open_level_tester(self):
+        from .level_tester_app import open_level_tester
+
+        open_level_tester(self, self.level_folder)
+
     def show_info(self):
         messagebox.showinfo(
             "Level Editor Info",
@@ -1095,7 +999,7 @@ class BallDropLevelEditor(tk.Tk):
             "- Right click clears xóa ô bằng chuột phải; double-click chuột phải vẫn xóa ô.\n"
             "- Double-click chuột trái luôn fill ô theo config hiện tại.\n"
             "- Kéo thả một ô shooter sang ô khác để hoán đổi vị trí.\n"
-            "- Multi shooter select cho phép Ctrl/Shift-click chọn nhiều shooter rồi Paint/Clear Selected theo nhóm.\n"
+            "- Multi cell select cho phép Ctrl/Shift-click chọn nhiều cell rồi Paint/Clear Selected theo nhóm.\n"
             "- Copy / Paste are in Grid Tools and use the selected cell.\n\n"
             "Gate / Tray\n"
             "- Click vào bất kỳ vị trí nào trong cột gate để chọn gate; click tray để chọn tray.\n"
@@ -1139,11 +1043,48 @@ class BallDropLevelEditor(tk.Tk):
         self.mechanics_var.set(", ".join(merged))
 
     def resize_grid(self):
-        self.record_history()
         rows = max(1, self.rows_var.get())
         cols = max(1, self.cols_var.get())
+        current_grid = self.level.get("grid", {})
+        current_rows = current_grid.get("rows", 4)
+        current_cols = current_grid.get("columns", 4)
+        risky_cells = []
+        for cell in current_grid.get("cells", []):
+            row = cell.get("row", 0)
+            col = cell.get("column", 0)
+            entity = cell.get("entity")
+            if row >= rows or col >= cols:
+                entity_type = entity.get("type") if entity else None
+                if entity_type in {"Shooter", "Tunnel"}:
+                    risky_cells.append((row, col, entity_type))
+
+        if risky_cells:
+            examples = ", ".join(f"({row},{col}) {entity_type}" for row, col, entity_type in risky_cells[:8])
+            extra = "" if len(risky_cells) <= 8 else f"\n...and {len(risky_cells) - 8} more."
+            if not messagebox.askyesno(
+                "Resize Grid",
+                "This resize will remove Shooter/Tunnel cells outside the new grid.\n\n"
+                f"New size: {rows} x {cols}\n"
+                f"Cells affected: {len(risky_cells)}\n"
+                f"{examples}{extra}\n\nContinue?"
+            ):
+                self.rows_var.set(current_rows)
+                self.cols_var.set(current_cols)
+                return
+
+        self.record_history()
         set_grid_size(self.level, rows, cols)
+        if self.selected_cell:
+            selected_row, selected_col = self.selected_cell
+            if selected_row >= rows or selected_col >= cols:
+                self.selected_cell = None
+        self.selected_grid_cells = {
+            (row, col)
+            for row, col in self.selected_grid_cells
+            if row < rows and col < cols
+        }
         self._refresh_grid_buttons()
+        self._update_selected_label()
         self.refresh_json_preview()
 
     def apply_gate_system(self):
@@ -1295,11 +1236,18 @@ class BallDropLevelEditor(tk.Tk):
         self.selected_tray_id_var.set(tray.get("trayId", ""))
         self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
         self.selected_layer_var.set(self.selected_layer_index)
-        self.selected_layer_color_var.set(layer.get("colorId", "Blue"))
+        layer_color = layer.get("colorId", "Blue")
+        self.selected_layer_color_var.set(layer_color)
+        if hasattr(self, "cell_edit_color") and layer_color in BALL_COLORS and layer_color != "None":
+            self.cell_edit_color.set(layer_color)
+            self._refresh_choice_group("cell_edit_color")
         self.selected_layer_count_var.set(max(1, safe_int(str(layer.get("requiredCount", 3)), 3)))
 
     def _default_tray_layer(self) -> Dict[str, Any]:
-        return {"colorId": "Blue", "requiredCount": 3}
+        color = self.cell_edit_color.get() if hasattr(self, "cell_edit_color") else "Blue"
+        if color not in BALL_COLORS or color == "None":
+            color = "Blue"
+        return {"colorId": color, "requiredCount": 3}
 
     def _format_index_list(self, values: List[int]) -> str:
         if len(values) <= 4:
@@ -1588,9 +1536,10 @@ class BallDropLevelEditor(tk.Tk):
         targets = self._selected_tray_targets()
         if not targets:
             return
-        color = self.selected_layer_color_var.get()
+        color = self.cell_edit_color.get() if hasattr(self, "cell_edit_color") else self.selected_layer_color_var.get()
         if color not in BALL_COLORS or color == "None":
             color = "Blue"
+        self.selected_layer_color_var.set(color)
         new_count = max(1, safe_int(str(self.selected_layer_count_var.get()), 3))
 
         pending: List[Tuple[Tuple[int, int], int]] = []
@@ -2018,11 +1967,7 @@ class BallDropLevelEditor(tk.Tk):
         return self._is_shooter_entity(find_cell(self.level, row, col).get("entity"))
 
     def _brush_modifiers(self) -> List[Dict[str, Any]]:
-        return make_shooter_modifiers(
-            hidden=self.brush_hidden_modifier.get(),
-            ice=self.brush_ice_modifier.get(),
-            ice_hp=max(1, safe_int(str(self.brush_ice_hp.get()), 1)),
-        )
+        return self._cell_editor_modifiers()
 
     def _selected_shooter_data(self) -> List[Dict[str, Any]]:
         shooters = []
@@ -2067,11 +2012,11 @@ class BallDropLevelEditor(tk.Tk):
         modifiers = shooters[0].get("modifiers", [])
         hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
         ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
-        self.brush_hidden_modifier.set(hidden is not None)
-        self.brush_ice_modifier.set(ice is not None)
+        self.cell_edit_hidden_modifier.set(hidden is not None)
+        self.cell_edit_ice_modifier.set(ice is not None)
         if ice is not None:
-            self.brush_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
-        self.update_brush_modifier_state()
+            self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
+        self.update_cell_editor_modifier_state()
 
     def update_cell_editor_modifier_state(self):
         if not hasattr(self, "cell_edit_ice_hp_spin"):
@@ -2081,12 +2026,48 @@ class BallDropLevelEditor(tk.Tk):
 
     def on_cell_editor_modifier_change(self):
         self.update_cell_editor_modifier_state()
-        self.auto_apply_cell_editor()
+        self.apply_modifier_button_change("Ice")
 
     def auto_apply_cell_editor(self, event=None):
-        if self._syncing_cell_editor or not self.selected_cell:
+        if self._syncing_cell_editor:
             return None
-        self.apply_cell_editor_to_selected(show_warning=False)
+        if self.selected_cell:
+            self.apply_cell_editor_to_selected(show_warning=False)
+        if hasattr(self, "selected_layer_color_var"):
+            self.apply_selected_layer_fields()
+        return None
+
+    def apply_modifier_button_change(self, modifier_type: str):
+        if self._syncing_cell_editor:
+            return None
+        self.set_selected_modifier_enabled(
+            modifier_type,
+            self.cell_edit_hidden_modifier.get() if modifier_type == "Hidden" else self.cell_edit_ice_modifier.get(),
+        )
+        return None
+
+    def apply_ice_hp_change(self, event=None):
+        if self._syncing_cell_editor:
+            return None
+        shooters = self._cell_editor_target_shooters()
+        if not shooters:
+            return None
+        self.record_history()
+        hp = max(1, safe_int(str(self.cell_edit_ice_hp.get()), 1))
+        for shooter in shooters:
+            modifiers = [copy.deepcopy(modifier) for modifier in shooter.get("modifiers", [])]
+            ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
+            if ice is None:
+                modifiers.append({"type": "Ice", "hp": hp})
+                self.cell_edit_ice_modifier.set(True)
+            else:
+                ice["hp"] = hp
+            shooter["modifiers"] = modifiers
+        self.update_cell_editor_modifier_state()
+        self._update_selected_label()
+        self._refresh_grid_button_states()
+        self._refresh_cell_tunnel_queue(self._selected_tunnel_queue_index())
+        self.refresh_json_preview()
         return None
 
     def _cell_editor_modifiers(self) -> List[Dict[str, Any]]:
@@ -2283,7 +2264,7 @@ class BallDropLevelEditor(tk.Tk):
 
     def load_selected_cell_to_editor(self):
         if not self.selected_cell:
-            messagebox.showwarning("Cell Editor", "Select a grid cell first.")
+            messagebox.showwarning("Cell Tool", "Select a grid cell first.")
             return
         self._sync_cell_editor_from_selection(show_warning=True)
 
@@ -2446,6 +2427,14 @@ class BallDropLevelEditor(tk.Tk):
 
     def toggle_selected_modifier(self, modifier_type: str):
         shooters = self._cell_editor_target_shooters()
+        enabled = not any(
+            any(modifier.get("type") == modifier_type for modifier in shooter.get("modifiers", []))
+            for shooter in shooters
+        )
+        self.set_selected_modifier_enabled(modifier_type, enabled)
+
+    def set_selected_modifier_enabled(self, modifier_type: str, enabled: bool):
+        shooters = self._cell_editor_target_shooters()
         if not shooters:
             messagebox.showwarning("No Shooter", "Select a shooter cell or a tunnel with queued shooters first.")
             return
@@ -2453,18 +2442,23 @@ class BallDropLevelEditor(tk.Tk):
         self.record_history()
         for shooter in shooters:
             modifiers = [copy.deepcopy(modifier) for modifier in shooter.get("modifiers", [])]
-            existing = next((modifier for modifier in modifiers if modifier.get("type") == modifier_type), None)
-            if existing:
+            existing = any(modifier.get("type") == modifier_type for modifier in modifiers)
+            if not enabled and existing:
                 modifiers = [modifier for modifier in modifiers if modifier.get("type") != modifier_type]
-            elif modifier_type == "Hidden":
+            elif enabled and not existing and modifier_type == "Hidden":
                 modifiers.append({"type": "Hidden"})
-            elif modifier_type == "Ice":
+            elif enabled and not existing and modifier_type == "Ice":
                 modifiers.append({
                     "type": "Ice",
                     "hp": max(1, safe_int(str(self.cell_edit_ice_hp.get()), 1)),
                 })
             shooter["modifiers"] = modifiers
 
+        if modifier_type == "Hidden":
+            self.cell_edit_hidden_modifier.set(enabled)
+        elif modifier_type == "Ice":
+            self.cell_edit_ice_modifier.set(enabled)
+            self.update_cell_editor_modifier_state()
         self._update_selected_label()
         self._refresh_grid_button_states()
         self._refresh_cell_tunnel_queue(self._selected_tunnel_queue_index())
@@ -2493,7 +2487,7 @@ class BallDropLevelEditor(tk.Tk):
         ent = find_cell(self.level, row, col).get("entity")
         selected_count = len(self.selected_grid_cells) if self._grid_multi_shooter_select_enabled() else 0
         if selected_count > 1:
-            self.selected_label.configure(text=f"Selected: {selected_count} shooters; active row={row}, column={col}")
+            self.selected_label.configure(text=f"Selected: {selected_count} cells; active row={row}, column={col}")
         else:
             self.selected_label.configure(text=f"Selected: row={row}, column={col}, entity={ent.get('type') if ent else 'Empty'}")
         self._sync_cell_editor_from_selection(show_warning=False)
@@ -2510,11 +2504,7 @@ class BallDropLevelEditor(tk.Tk):
         for row, col in targets:
             self._apply_brush_to_cell(row, col)
         if self._grid_multi_shooter_select_enabled():
-            self.selected_grid_cells = {
-                (row, col)
-                for row, col in targets
-                if self._is_shooter_cell(row, col)
-            }
+            self.selected_grid_cells = set(targets)
         self._update_selected_label()
         self._refresh_grid_button_states()
         self.refresh_json_preview()
@@ -2536,7 +2526,7 @@ class BallDropLevelEditor(tk.Tk):
         self.selected_cell = (row, col)
         cell = find_cell(self.level, row, col)
         ent = cell.get("entity")
-        if self._grid_multi_shooter_select_enabled() and self._is_shooter_entity(ent):
+        if self._grid_multi_shooter_select_enabled():
             cell_ref = (row, col)
             if additive:
                 if cell_ref in self.selected_grid_cells and len(self.selected_grid_cells) > 1:
@@ -2563,7 +2553,7 @@ class BallDropLevelEditor(tk.Tk):
         self.select_cell(row, col, paint=paint_on_click, additive=additive)
 
     def _apply_brush_to_cell(self, row: int, col: int):
-        btype = self.brush_type.get()
+        btype = self.cell_edit_entity_type.get()
         cell = find_cell(self.level, row, col)
         if btype == "Empty":
             cell["entity"] = None
@@ -2571,18 +2561,19 @@ class BallDropLevelEditor(tk.Tk):
             cell["entity"] = make_shooter_entity(
                 row,
                 col,
-                self.brush_color.get(),
-                max(1, self.brush_capacity.get()),
+                self.cell_edit_color.get(),
+                max(1, safe_int(str(self.cell_edit_capacity.get()), 1)),
                 self._brush_modifiers(),
             )
         elif btype == "Wall":
             cell["entity"] = make_wall_entity(row, col)
         elif btype == "Tunnel":
+            queue_text = f"{self.cell_edit_color.get()}:{max(1, safe_int(str(self.cell_edit_capacity.get()), 1))}"
             cell["entity"] = make_tunnel_entity(
                 row,
                 col,
-                self.tunnel_direction.get(),
-                self.tunnel_queue.get(),
+                self.cell_edit_tunnel_direction.get(),
+                queue_text,
                 self._brush_modifiers(),
             )
 
@@ -2590,13 +2581,7 @@ class BallDropLevelEditor(tk.Tk):
         self.record_history()
         self._apply_brush_to_cell(row, col)
         if self._grid_multi_shooter_select_enabled():
-            self.selected_grid_cells = {
-                (selected_row, selected_col)
-                for selected_row, selected_col in self.selected_grid_cells
-                if self._is_shooter_cell(selected_row, selected_col)
-            }
-            if self._is_shooter_cell(row, col):
-                self.selected_grid_cells.add((row, col))
+            self.selected_grid_cells.add((row, col))
         self._update_selected_label()
         self._refresh_grid_button_states()
         self.refresh_json_preview()
@@ -2689,6 +2674,7 @@ class BallDropLevelEditor(tk.Tk):
         return shooter_by_color, tray_by_color
 
     def mark_level_changed(self):
+        self._update_level_save_status()
         if not hasattr(self, "validation_summary"):
             return
         if not self.auto_validate_var.get():
