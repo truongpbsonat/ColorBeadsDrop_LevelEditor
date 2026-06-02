@@ -188,6 +188,7 @@ class BallDropLevelEditor(tk.Tk):
         ttk.Button(frame, text="Info", command=self.show_info, width=5).grid(row=0, column=13, padx=(2, 8), pady=1)
         ttk.Label(frame, textvariable=self.level_save_status_var, width=15, anchor="w").grid(row=0, column=14, padx=(0, 8), pady=1, sticky="w")
         ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
+        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=16, padx=(8, 0), pady=1, sticky="e")
         ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
 
         ttk.Label(frame, text="Mechanics").grid(row=1, column=0, padx=(0, 3), pady=(5, 1), sticky="w")
@@ -989,6 +990,25 @@ class BallDropLevelEditor(tk.Tk):
         from .level_tester_app import open_level_tester
 
         open_level_tester(self, self.level_folder)
+
+    def open_level_generator(self):
+        from .level_generator_window import open_level_generator
+
+        open_level_generator(self)
+
+    def apply_generated_level(self, level: Dict[str, Any]):
+        self.record_history()
+        normalize_runtime_level(level)
+        self.level = level
+        self.current_file = None
+        self.selected_cell = None
+        self.selected_grid_cells.clear()
+        self.selected_tray_index = None
+        self.selected_trays.clear()
+        self.selected_gate_index = 0
+        self.selected_gate_indices = {0}
+        self.selected_layer_index = 0
+        self._refresh_all()
 
     def show_info(self):
         messagebox.showinfo(
