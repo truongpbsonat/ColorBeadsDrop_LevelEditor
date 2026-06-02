@@ -72,6 +72,7 @@ class GameState:
     cols: int
     cells: List[CellState]
     gates: List[List[List[List[Any]]]]
+    obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
     hopper: List[str] = field(default_factory=list)
     steps: int = 0
@@ -84,6 +85,7 @@ class GameState:
     def key(self) -> Tuple[Any, ...]:
         return (
             tuple(cell.key() for cell in self.cells),
+            self.obstacle_blocked,
             tuple(
                 tuple(
                     tuple(tuple(layer) for layer in tray)
@@ -152,7 +154,31 @@ class BallDropSimulator:
                     gate.append(layers)
             gates.append(gate)
 
-        state = GameState(rows=rows, cols=cols, cells=cells, gates=gates)
+        obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
+        for obstacle in grid.get("obstacles", []) or []:
+            if obstacle.get("type") != "IceBlock":
+                continue
+            obstacle_cells = self._expand_obstacle_cells(obstacle)
+            blocks_path = bool(obstacle.get("blocksPath", True))
+            locks_shooter = bool(obstacle.get("locksShooter", True))
+            hp = max(1, int(obstacle.get("hp", 1) or 1))
+            for row, col in obstacle_cells:
+                if not (0 <= row < rows and 0 <= col < cols):
+                    continue
+                if blocks_path:
+                    obstacle_blocked[row][col] = True
+                if locks_shooter:
+                    cell = cells[row * cols + col]
+                    if cell.type == "Shooter" and cell.shooter:
+                        cell.shooter.ice_hp = max(cell.shooter.ice_hp, hp)
+
+        state = GameState(
+            rows=rows,
+            cols=cols,
+            cells=cells,
+            gates=gates,
+            obstacle_blocked=tuple(tuple(row) for row in obstacle_blocked),
+        )
         self.settle_tunnels(state)
         return state
 
@@ -241,6 +267,8 @@ class BallDropSimulator:
         return False
 
     def is_passable(self, state: GameState, row: int, col: int) -> bool:
+        if state.obstacle_blocked and state.obstacle_blocked[row][col]:
+            return False
         cell = state.cells[row * state.cols + col]
         return cell.type == "Empty"
 
@@ -373,6 +401,39 @@ class BallDropSimulator:
         if 0 <= row < self.level["grid"]["rows"] and 0 <= col < self.level["grid"]["columns"]:
             return row, col
         return None
+
+    def _expand_obstacle_cells(self, obstacle: Dict[str, Any]) -> List[Tuple[int, int]]:
+        shape = obstacle.get("shape", {}) or {}
+        origin = shape.get("origin", {}) or {}
+        origin_row = int(origin.get("row", 0) or 0)
+        origin_col = int(origin.get("column", 0) or 0)
+        shape_type = shape.get("type", "Rect")
+        if shape_type == "CustomCells":
+            return [
+                (int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0))
+                for cell in shape.get("cells", []) or []
+            ]
+        if shape_type == "Plus":
+            return [
+                (origin_row, origin_col),
+                (origin_row - 1, origin_col),
+                (origin_row + 1, origin_col),
+                (origin_row, origin_col - 1),
+                (origin_row, origin_col + 1),
+            ]
+        if shape_type == "LineHorizontal":
+            width = max(1, int(shape.get("width", 1) or 1))
+            return [(origin_row, origin_col + col) for col in range(width)]
+        if shape_type == "LineVertical":
+            height = max(1, int(shape.get("height", 1) or 1))
+            return [(origin_row + row, origin_col) for row in range(height)]
+        width = max(1, int(shape.get("width", 1) or 1))
+        height = max(1, int(shape.get("height", 1) or 1))
+        return [
+            (origin_row + row, origin_col + col)
+            for row in range(height)
+            for col in range(width)
+        ]
 
 
 class DeepSearchSolver:
