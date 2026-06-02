@@ -15,6 +15,7 @@ def make_empty_level(rows: int = 4, cols: int = 4, gate_count: int = 4) -> Dict[
         "category": 0,
         "time": 60,
         "levelName": "New Level",
+        "mechanics": [],
         "grid": {
             "rows": rows,
             "columns": cols,
@@ -44,6 +45,7 @@ def normalize_runtime_level(level: Dict[str, Any]) -> Dict[str, Any]:
     level["category"] = max(0, safe_int(str(level.get("category", 0)), 0))
     level["time"] = max(0, safe_int(str(level.get("time", 60)), 60))
     level["levelName"] = str(level.get("levelName") or "").strip() or "New Level"
+    level["mechanics"] = _normalize_mechanics(level.get("mechanics", []))
 
     grid = level.setdefault("grid", {})
     rows = max(1, safe_int(str(grid.get("rows", 4)), 4))
@@ -64,7 +66,7 @@ def normalize_runtime_level(level: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(gate_count)
     ]
 
-    _retain_keys(level, {"gameMode", "difficulty", "level", "category", "time", "levelName", "grid", "gateSystem"})
+    _retain_keys(level, {"gameMode", "difficulty", "level", "category", "time", "levelName", "mechanics", "grid", "gateSystem"})
     _retain_keys(grid, {"rows", "columns", "cells", "obstacles", "shooterGroups"})
     _retain_keys(gate_system, {"gateCount", "maxVisibleTrayPerGate", "gates"})
     return level
@@ -230,6 +232,55 @@ def _retain_keys(data: Dict[str, Any], allowed: set[str]) -> None:
     for key in list(data):
         if key not in allowed:
             data.pop(key, None)
+
+
+def _normalize_mechanics(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    result: List[str] = []
+    seen = set()
+    for item in value:
+        text = str(item).strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
+def detect_mechanics(level: Dict[str, Any]) -> List[str]:
+    """Scan placed elements and return the canonical mechanic ids present in the level.
+    Keep in sync with BallDropMechanicIds.cs and the MechanicCatalogConfig asset."""
+    found: set[str] = set()
+    grid = level.get("grid", {}) or {}
+
+    for cell in grid.get("cells", []) or []:
+        entity = cell.get("entity")
+        if not isinstance(entity, dict):
+            continue
+        entity_type = entity.get("type")
+        if entity_type == "Shooter":
+            _collect_shooter_modifiers(entity.get("shooter", {}) or {}, found)
+        elif entity_type == "Tunnel":
+            found.add("Tunnel")
+            for shooter in entity.get("shooterQueue", []) or []:
+                _collect_shooter_modifiers(shooter or {}, found)
+
+    for obstacle in grid.get("obstacles", []) or []:
+        if isinstance(obstacle, dict) and obstacle.get("type") == "IceBlock":
+            found.add("IceBlock")
+
+    return sorted(found)
+
+
+def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
+    for modifier in shooter.get("modifiers", []) or []:
+        if not isinstance(modifier, dict):
+            continue
+        modifier_type = modifier.get("type")
+        if modifier_type == "Ice":
+            found.add("IceShooter")
+        elif modifier_type == "Hidden":
+            found.add("HiddenShooter")
 
 
 def _normalize_cell(cell: Dict[str, Any], row: int, col: int) -> Dict[str, Any]:

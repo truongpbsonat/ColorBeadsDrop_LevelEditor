@@ -8,11 +8,13 @@ from .constants import (
     DIRECTIONS,
     GRID_OBSTACLE_SHAPE_TYPES,
     GRID_OBSTACLE_TYPES,
+    MECHANIC_IDS,
     RUNTIME_ENTITY_TYPES,
     SHOOTER_GROUP_RULES,
     SHOOTER_GROUP_TYPES,
     SHOOTER_MODIFIER_TYPES,
 )
+from .level_data import detect_mechanics
 
 LEGACY_GRID_CELL_FIELDS = {"type", "shooter", "wall", "tunnel", "portal", "generator", "blocker"}
 
@@ -185,6 +187,8 @@ class LevelValidator:
         if not has_initial_active_shooter:
             warnings.append("No shooter active initially.")
 
+        self._validate_mechanics(level, errors, warnings)
+
         if not errors and not warnings:
             warnings.append("OK: Không phát hiện lỗi cơ bản.")
 
@@ -228,6 +232,27 @@ class LevelValidator:
             for shooter_id in group.get("shooterIds", []):
                 if shooter_id not in shooter_ids:
                     errors.append(f"ShooterGroup {group.get('groupId')} tham chiếu shooterId không tồn tại: {shooter_id}.")
+
+    def _validate_mechanics(self, level: Dict[str, Any], errors: List[str], warnings: List[str]) -> None:
+        mechanics = level.get("mechanics", [])
+        if not isinstance(mechanics, list):
+            errors.append("mechanics phải là list các mechanic id.")
+            return
+
+        authored = set()
+        for mechanic in mechanics:
+            if not isinstance(mechanic, str) or not mechanic.strip():
+                errors.append(f"mechanics chứa id không hợp lệ: {mechanic!r}.")
+                continue
+            mid = mechanic.strip()
+            if mid in authored:
+                warnings.append(f"mechanics có id trùng lặp: {mid}.")
+            authored.add(mid)
+            if mid not in MECHANIC_IDS:
+                warnings.append(f"mechanics có id không nằm trong danh sách chuẩn: {mid}.")
+
+        for mid in sorted(set(detect_mechanics(level)) - authored):
+            warnings.append(f"Mechanic '{mid}' xuất hiện trong level nhưng chưa khai báo trong 'mechanics' (dùng Auto-detect).")
 
     def _expand_shape(self, shape: Dict[str, Any]) -> List[Tuple[int, int]]:
         origin = shape.get("origin", {})

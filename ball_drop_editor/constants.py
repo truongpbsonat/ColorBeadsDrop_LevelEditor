@@ -38,3 +38,8 @@ SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]
 SHOOTER_GROUP_RULES = ["UnlockTogether", "SelectTogether", "RemoveTogether"]
 GAME_MODES = ["Classic"]
 LEVEL_DIFFICULTIES = ["Normal", "Hard", "SuperHard"]
+
+# Canonical mechanic ids. Keep in sync with BallDropMechanicIds.cs and the MechanicCatalogConfig asset.
+MECHANIC_IDS = [
+    "Tunnel", "IceShooter", "HiddenShooter"
+]

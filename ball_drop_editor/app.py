@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES
 from .gate_text import gates_to_text, parse_gate_text
 from .level_data import (
+    detect_mechanics,
     entity_bg,
     entity_label,
     find_cell,
@@ -81,6 +82,7 @@ class BallDropLevelEditor(tk.Tk):
         self.category_var = tk.IntVar(value=0)
         self.time_var = tk.IntVar(value=60)
         self.level_name_var = tk.StringVar(value="New Level")
+        self.mechanics_var = tk.StringVar(value="")
         self.level_folder_var = tk.StringVar(value=self._level_folder_label())
         self.level_file_status_var = tk.StringVar(value="No file loaded")
 
@@ -155,6 +157,15 @@ class BallDropLevelEditor(tk.Tk):
         difficulty_combo = ttk.Combobox(meta_row, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=12)
         difficulty_combo.pack(side="left", fill="x", expand=True)
         difficulty_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh_json_preview())
+
+        mechanics_row = ttk.Frame(frame)
+        mechanics_row.pack(fill="x", pady=(6, 2))
+        ttk.Label(mechanics_row, text="Mechanics", width=8).pack(side="left")
+        mechanics_entry = ttk.Entry(mechanics_row, textvariable=self.mechanics_var)
+        mechanics_entry.pack(side="left", fill="x", expand=True)
+        mechanics_entry.bind("<Return>", lambda e: self.refresh_json_preview())
+        mechanics_entry.bind("<FocusOut>", lambda e: self.refresh_json_preview())
+        ttk.Button(frame, text="Auto-detect mechanics", command=self.auto_detect_mechanics).pack(fill="x", pady=(0, 4))
 
         save_row = ttk.Frame(frame)
         save_row.pack(fill="x", pady=2)
@@ -991,6 +1002,7 @@ class BallDropLevelEditor(tk.Tk):
 
     def save_json(self):
         self.sync_basic_fields()
+        self.merge_detected_mechanics()
         normalize_runtime_level(self.level)
         folder = self.level_folder or DEFAULT_LEVEL_SAVE_DIR
         os.makedirs(folder, exist_ok=True)
@@ -1026,6 +1038,7 @@ class BallDropLevelEditor(tk.Tk):
             self.level_var.set(str(file_level_id))
             self.file_level_var.set(str(file_level_id))
         self.sync_basic_fields()
+        self.merge_detected_mechanics()
         normalize_runtime_level(self.level)
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -1108,9 +1121,22 @@ class BallDropLevelEditor(tk.Tk):
         self.level["category"] = safe_int(str(self.category_var.get()), 0)
         self.level["time"] = safe_int(str(self.time_var.get()), 60)
         self.level["levelName"] = self.level_name_var.get().strip() or "New Level"
+        self.level["mechanics"] = [m.strip() for m in self.mechanics_var.get().split(",") if m.strip()]
         self.level.setdefault("gateSystem", {})["gateCount"] = safe_int(str(self.gate_count_var.get()), 4)
         self.level.setdefault("gateSystem", {})["maxVisibleTrayPerGate"] = safe_int(str(self.max_visible_var.get()), 4)
         normalize_runtime_level(self.level)
+
+    def auto_detect_mechanics(self):
+        detected = detect_mechanics(self.level)
+        self.mechanics_var.set(", ".join(detected))
+        self.refresh_json_preview()
+
+    def merge_detected_mechanics(self):
+        authored = self.level.get("mechanics", []) or []
+        detected = detect_mechanics(self.level)
+        merged = list(dict.fromkeys([*authored, *detected]))
+        self.level["mechanics"] = merged
+        self.mechanics_var.set(", ".join(merged))
 
     def resize_grid(self):
         self.record_history()
@@ -2690,6 +2716,7 @@ class BallDropLevelEditor(tk.Tk):
         self.category_var.set(self.level.get("category", 0))
         self.time_var.set(self.level.get("time", 60))
         self.level_name_var.set(self.level.get("levelName", "New Level"))
+        self.mechanics_var.set(", ".join(self.level.get("mechanics", []) or []))
 
         gs = self.level.get("gateSystem", {})
         self.gate_count_var.set(gs.get("gateCount", 4))
