@@ -116,9 +116,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 45,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 45
               }
             ]
           }
@@ -138,9 +136,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 30,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 30
               }
             ]
           }
@@ -292,9 +288,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 45,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 45
               }
             ]
           }
@@ -374,9 +368,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 60,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 60
               }
             ]
           }
@@ -951,5 +943,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter"
+  ]
 }

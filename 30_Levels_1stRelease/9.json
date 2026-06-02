@@ -1025,5 +1025,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter"
+  ]
 }

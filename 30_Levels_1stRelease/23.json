@@ -6,7 +6,7 @@
   "time": 60,
   "levelName": "Level_23",
   "grid": {
-    "rows": 6,
+    "rows": 4,
     "columns": 5,
     "cells": [
       {
@@ -336,96 +336,6 @@
               }
             ]
           }
-        }
-      },
-      {
-        "row": 4,
-        "column": 0,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_0_9589",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 1,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_1_7649",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 2,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_2_g6vk",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 3,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_3_wve3",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 4,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_4_fn5w",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 0,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_0_ejky",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 1,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_1_efyk",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 2,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_2_hcaz",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 3,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_3_jgcx",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 4,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_4_lxsr",
-          "blocksPath": true
         }
       }
     ],
@@ -970,5 +880,10 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter",
+    "IceShooter",
+    "Tunnel"
+  ]
 }

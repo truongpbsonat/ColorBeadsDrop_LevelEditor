@@ -8,7 +8,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .constants import BALL_COLORS, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES
-from .level_data import find_cell, make_empty_level, make_shooter_entity, make_wall_entity, normalize_runtime_level
+from .level_data import (
+    find_cell,
+    make_empty_level,
+    make_shooter_entity,
+    make_tunnel_entity,
+    make_wall_entity,
+    normalize_runtime_level,
+)
 from .level_tester_score import SolverScoreAdapter, SolverScoreResult
 from .utils import short_id
 from .validator import LevelValidator
@@ -33,6 +40,7 @@ class GeneratorPhase:
     conveyor_pressure: int = 1
     unlock_maze: int = 1
     same_color_route: int = 0
+    tunnel_pressure: int = 0
     obstacle_pressure: int = 0
     obstacle_types: List[str] = field(default_factory=lambda: ["IceBlock"])
 
@@ -63,6 +71,11 @@ class GeneratorConfig:
     shooter_count: int = 20
     wall_count: int = 5
     color_count: int = 5
+    color_mode: str = "Auto"
+    manual_colors: List[str] = field(default_factory=list)
+    allowed_devices: List[str] = field(default_factory=lambda: ["Wall", "Tunnel", "IceBlock"])
+    tunnel_queue_min: int = 1
+    tunnel_queue_max: int = 2
     shooter_capacity: int = 9
     tray_unit: int = 3
     solver_budget: float = 20.0
@@ -75,9 +88,9 @@ class GeneratorConfig:
             return sorted(self.phases, key=lambda phase: (phase.start_click, phase.end_click))
         third = max(1, self.shooter_count // 3)
         return [
-            GeneratorPhase("Warmup", 1, third, "Easy", 1, 1, 1, 0, 0),
-            GeneratorPhase("Spike A", third + 1, third * 2, "Hard", 3, 2, 2, 2, 1),
-            GeneratorPhase("Spike B", third * 2 + 1, self.shooter_count, "VeryHard", 3, 3, 3, 2, 2),
+            GeneratorPhase("Warmup", 1, third, "Easy", 1, 1, 1, 0, 0, 0),
+            GeneratorPhase("Spike A", third + 1, third * 2, "Hard", 3, 2, 2, 2, 1, 1),
+            GeneratorPhase("Spike B", third * 2 + 1, self.shooter_count, "VeryHard", 3, 3, 3, 2, 2, 2),
         ]
 
 
@@ -137,11 +150,13 @@ class DifficultyCurveGenerator:
         cols = max(1, int(self.config.cols))
         shooter_count = max(1, min(int(self.config.shooter_count), rows * cols))
         wall_count = max(0, min(int(self.config.wall_count), rows * cols - shooter_count))
+        if "Wall" not in self.config.allowed_devices:
+            wall_count = 0
         gate_count = max(1, int(self.config.gate_count))
 
         level = make_empty_level(rows, cols, gate_count)
         level["level"] = max(1, int(self.config.level_id))
-        level["levelName"] = self.config.level_name or f"Level_{level['level']}"
+        level["levelName"] = f"Level_{level['level']}"
         level["difficulty"] = self.config.difficulty if self.config.difficulty in LEVEL_DIFFICULTIES else "Hard"
         level["category"] = max(0, int(self.config.category))
         level["time"] = max(0, int(self.config.time))
@@ -149,13 +164,33 @@ class DifficultyCurveGenerator:
 
         shooter_positions = self._choose_shooter_positions(rows, cols, shooter_count)
         colors = self._build_solution_colors(shooter_count)
+        tunnel_groups = self._choose_tunnel_groups(shooter_positions)
+        tunnel_consumed = {
+            color_index
+            for color_indices in tunnel_groups.values()
+            for color_index in color_indices
+        }
         for index, (row, col) in enumerate(shooter_positions):
-            find_cell(level, row, col)["entity"] = make_shooter_entity(
-                row,
-                col,
-                colors[index],
-                max(1, int(self.config.shooter_capacity)),
-            )
+            if index in tunnel_groups:
+                queue_text = ", ".join(
+                    f"{colors[color_index]}:{max(1, int(self.config.shooter_capacity))}"
+                    for color_index in tunnel_groups[index]
+                )
+                find_cell(level, row, col)["entity"] = make_tunnel_entity(
+                    row,
+                    col,
+                    "Up",
+                    queue_text,
+                )
+            elif index in tunnel_consumed:
+                continue
+            else:
+                find_cell(level, row, col)["entity"] = make_shooter_entity(
+                    row,
+                    col,
+                    colors[index],
+                    max(1, int(self.config.shooter_capacity)),
+                )
 
         self._place_walls(level, shooter_positions, wall_count)
         self._place_obstacles(level, shooter_positions)
@@ -196,6 +231,8 @@ class DifficultyCurveGenerator:
         level: Dict[str, Any],
         shooter_positions: Sequence[Tuple[int, int]],
     ) -> None:
+        if "IceBlock" not in self.config.allowed_devices:
+            return
         phases = self.config.normalized_phases()
         if not GRID_OBSTACLE_TYPES:
             return
@@ -226,7 +263,7 @@ class DifficultyCurveGenerator:
         level.setdefault("grid", {})["obstacles"] = obstacles
 
     def _build_solution_colors(self, count: int) -> List[str]:
-        palette = [color for color in DEFAULT_GENERATOR_COLORS if color in BALL_COLORS][: max(1, self.config.color_count)]
+        palette = self._active_palette()
         if not palette:
             palette = ["Blue"]
         phases = self.config.normalized_phases()
@@ -246,6 +283,64 @@ class DifficultyCurveGenerator:
             colors.append(color)
             previous = color
         return colors
+
+    def _active_palette(self) -> List[str]:
+        if self.config.color_mode == "Manual":
+            selected = [
+                color
+                for color in self.config.manual_colors
+                if color in BALL_COLORS and color != "None"
+            ]
+            return selected[: max(1, int(self.config.color_count))] or selected
+        return [
+            color
+            for color in DEFAULT_GENERATOR_COLORS
+            if color in BALL_COLORS and color != "None"
+        ][: max(1, int(self.config.color_count))]
+
+    def _choose_tunnel_groups(self, shooter_positions: Sequence[Tuple[int, int]]) -> Dict[int, List[int]]:
+        if "Tunnel" not in self.config.allowed_devices:
+            return {}
+        phases = self.config.normalized_phases()
+        total_intensity = sum(max(0, int(phase.tunnel_pressure)) for phase in phases)
+        if total_intensity <= 0:
+            return {}
+        by_pos = {position: index for index, position in enumerate(shooter_positions)}
+        candidates: List[int] = []
+        for index, (row, col) in enumerate(shooter_positions):
+            if row <= 0:
+                continue
+            output_index = by_pos.get((row - 1, col))
+            if output_index is None or output_index >= index:
+                continue
+            candidates.append(index)
+        self.rng.shuffle(candidates)
+        groups: Dict[int, List[int]] = {}
+        consumed: set[int] = set()
+        blocked_outputs: set[int] = set()
+        max_tunnels = min(len(candidates), max(1, total_intensity))
+        by_index = {index: position for index, position in enumerate(shooter_positions)}
+        for index in candidates:
+            row, col = by_index[index]
+            output_index = by_pos.get((row - 1, col))
+            if output_index is None or output_index in groups or output_index in blocked_outputs or index in consumed:
+                continue
+            queue_min = max(1, int(self.config.tunnel_queue_min))
+            queue_max = max(queue_min, int(self.config.tunnel_queue_max))
+            queue_len = self.rng.randint(queue_min, queue_max)
+            queue_indices = [index]
+            for next_index in range(index + 1, len(shooter_positions)):
+                if len(queue_indices) >= queue_len:
+                    break
+                if next_index in consumed or next_index in groups or next_index == output_index:
+                    continue
+                queue_indices.append(next_index)
+            groups[index] = queue_indices
+            consumed.update(queue_indices)
+            blocked_outputs.add(output_index)
+            if len(groups) >= max_tunnels:
+                break
+        return groups
 
     def _phase_for_click(self, phases: Sequence[GeneratorPhase], click_index: int) -> GeneratorPhase:
         for phase in phases:
@@ -293,15 +388,24 @@ def build_config_from_template(template: Dict[str, Any], base: GeneratorConfig) 
     cells = grid.get("cells", [])
     shooters = [cell for cell in cells if (cell.get("entity") or {}).get("type") == "Shooter"]
     walls = [cell for cell in cells if (cell.get("entity") or {}).get("type") == "Wall"]
+    tunnels = [cell for cell in cells if (cell.get("entity") or {}).get("type") == "Tunnel"]
     colors = {
         cell.get("entity", {}).get("shooter", {}).get("colorId")
         for cell in shooters
         if cell.get("entity", {}).get("shooter", {}).get("colorId") in BALL_COLORS
     }
+    for cell in tunnels:
+        for shooter in cell.get("entity", {}).get("shooterQueue", []) or []:
+            color = shooter.get("colorId")
+            if color in BALL_COLORS:
+                colors.add(color)
     capacities = [
         int(cell.get("entity", {}).get("shooter", {}).get("capacity", config.shooter_capacity) or config.shooter_capacity)
         for cell in shooters
     ]
+    for cell in tunnels:
+        for shooter in cell.get("entity", {}).get("shooterQueue", []) or []:
+            capacities.append(int(shooter.get("capacity", config.shooter_capacity) or config.shooter_capacity))
     config.rows = int(grid.get("rows", config.rows))
     config.cols = int(grid.get("columns", config.cols))
     config.gate_count = int(gate_system.get("gateCount", config.gate_count))
@@ -311,12 +415,50 @@ def build_config_from_template(template: Dict[str, Any], base: GeneratorConfig) 
     config.time = int(level.get("time", config.time))
     config.difficulty = level.get("difficulty", config.difficulty)
     config.category = int(level.get("category", config.category))
-    config.shooter_count = len(shooters) or config.shooter_count
+    config.shooter_count = (len(shooters) + sum(len((cell.get("entity") or {}).get("shooterQueue", []) or []) for cell in tunnels)) or config.shooter_count
     config.wall_count = len(walls)
     config.color_count = max(1, len([color for color in colors if color and color != "None"]))
+    config.manual_colors = [color for color in DEFAULT_GENERATOR_COLORS if color in colors]
     if capacities:
         config.shooter_capacity = max(1, round(sum(capacities) / len(capacities)))
     return config
+
+
+def load_template_folder(folder: str) -> List[Dict[str, Any]]:
+    if not os.path.isdir(folder):
+        return []
+    templates: List[Dict[str, Any]] = []
+    for filename in sorted(os.listdir(folder)):
+        if not filename.lower().endswith(".json"):
+            continue
+        path = os.path.join(folder, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                level = json.load(fh)
+            level["_templatePath"] = path
+            templates.append(level)
+        except Exception:
+            continue
+    return templates
+
+
+def select_template_for_config(templates: Sequence[Dict[str, Any]], base: GeneratorConfig) -> Optional[Dict[str, Any]]:
+    best_template: Optional[Dict[str, Any]] = None
+    best_score: Optional[float] = None
+    for template in templates:
+        config = build_config_from_template(template, base)
+        score = 0.0
+        score += abs(config.color_count - base.color_count) * 12
+        score += abs(config.shooter_count - base.shooter_count) * 2
+        score += abs(config.wall_count - base.wall_count)
+        score += abs(config.rows * config.cols - base.rows * base.cols)
+        score += abs(config.gate_count - base.gate_count) * 5
+        if config.difficulty != base.difficulty:
+            score += 10
+        if best_score is None or score < best_score:
+            best_score = score
+            best_template = template
+    return best_template
 
 
 def export_level(path: str, level: Dict[str, Any], overwrite: bool = False) -> bool:

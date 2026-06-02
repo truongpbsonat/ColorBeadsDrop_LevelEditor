@@ -140,9 +140,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 30,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 30
               }
             ]
           }
@@ -162,9 +160,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 39,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 39
               }
             ]
           }
@@ -268,9 +264,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 45,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 45
               }
             ]
           }
@@ -314,9 +308,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 60,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 60
               }
             ]
           }
@@ -336,9 +328,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 54,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 54
               }
             ]
           }
@@ -403,9 +393,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 60,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 60
               }
             ]
           }
@@ -449,9 +437,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 75,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 75
               }
             ]
           }
@@ -1269,5 +1255,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter"
+  ]
 }

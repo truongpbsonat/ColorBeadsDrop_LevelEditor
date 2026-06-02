@@ -6,7 +6,7 @@
   "time": 60,
   "levelName": "Level_8",
   "grid": {
-    "rows": 4,
+    "rows": 3,
     "columns": 4,
     "cells": [
       {
@@ -197,42 +197,6 @@
               }
             ]
           }
-        }
-      },
-      {
-        "row": 3,
-        "column": 0,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_3_0_66tm",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 3,
-        "column": 1,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_3_1_576k",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 3,
-        "column": 2,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_3_2_kgn3",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 3,
-        "column": 3,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_3_3_4myu",
-          "blocksPath": true
         }
       }
     ],
@@ -561,5 +525,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter"
+  ]
 }

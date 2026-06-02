@@ -366,5 +366,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter"
+  ]
 }

@@ -473,5 +473,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter"
+  ]
 }
