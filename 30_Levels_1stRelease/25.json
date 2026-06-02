@@ -6,7 +6,7 @@
   "time": 60,
   "levelName": "Level_25",
   "grid": {
-    "rows": 5,
+    "rows": 4,
     "columns": 6,
     "cells": [
       {
@@ -107,9 +107,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 30,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 30
               }
             ]
           }
@@ -159,9 +157,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 45,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 45
               }
             ]
           }
@@ -357,60 +353,6 @@
             "capacity": 9,
             "modifiers": []
           }
-        }
-      },
-      {
-        "row": 4,
-        "column": 0,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_0_3z3f",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 1,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_1_uj7q",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 2,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_2_kjx7",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 3,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_3_7zmt",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 4,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_4_rczf",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 4,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_5_5bns",
-          "blocksPath": true
         }
       }
     ],
@@ -982,5 +924,8 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter"
+  ]
 }

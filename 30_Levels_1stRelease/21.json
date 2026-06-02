@@ -693,5 +693,9 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter",
+    "Tunnel"
+  ]
 }

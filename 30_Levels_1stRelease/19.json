@@ -1201,5 +1201,9 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter",
+    "IceShooter"
+  ]
 }

@@ -23,9 +23,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 6,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 6
               }
             ]
           }
@@ -131,9 +129,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 30,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 30
               }
             ]
           }
@@ -162,9 +158,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 27,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 27
               }
             ]
           }
@@ -260,9 +254,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 39,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 39
               }
             ]
           }
@@ -282,9 +274,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 24,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 24
               }
             ]
           }
@@ -304,9 +294,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 45,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 45
               }
             ]
           }
@@ -354,9 +342,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 42,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 42
               }
             ]
           }
@@ -394,9 +380,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 36,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 36
               }
             ]
           }
@@ -936,5 +920,9 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter",
+    "IceShooter"
+  ]
 }

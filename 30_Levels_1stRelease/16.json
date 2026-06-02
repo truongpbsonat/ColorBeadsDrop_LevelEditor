@@ -7,7 +7,7 @@
   "levelName": "Level_16",
   "grid": {
     "rows": 6,
-    "columns": 6,
+    "columns": 5,
     "cells": [
       {
         "row": 0,
@@ -70,15 +70,6 @@
             "capacity": 9,
             "modifiers": []
           }
-        }
-      },
-      {
-        "row": 0,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_0_5_98y1",
-          "blocksPath": true
         }
       },
       {
@@ -157,15 +148,6 @@
         }
       },
       {
-        "row": 1,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_1_5_4h7l",
-          "blocksPath": true
-        }
-      },
-      {
         "row": 2,
         "column": 0,
         "entity": {
@@ -239,15 +221,6 @@
         }
       },
       {
-        "row": 2,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_2_5_28u6",
-          "blocksPath": true
-        }
-      },
-      {
         "row": 3,
         "column": 0,
         "entity": {
@@ -270,9 +243,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 60,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 60
               }
             ]
           }
@@ -292,9 +263,7 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 93,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 93
               }
             ]
           }
@@ -329,21 +298,10 @@
             "modifiers": [
               {
                 "type": "Ice",
-                "hp": 90,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 90
               }
             ]
           }
-        }
-      },
-      {
-        "row": 3,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_3_5_hen5",
-          "blocksPath": true
         }
       },
       {
@@ -416,15 +374,6 @@
         }
       },
       {
-        "row": 4,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_4_5_r4kb",
-          "blocksPath": true
-        }
-      },
-      {
         "row": 5,
         "column": 0,
         "entity": {
@@ -473,15 +422,6 @@
             "capacity": 9,
             "modifiers": []
           }
-        }
-      },
-      {
-        "row": 5,
-        "column": 5,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_5_km3o",
-          "blocksPath": true
         }
       }
     ],
@@ -1080,5 +1020,9 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter",
+    "IceShooter"
+  ]
 }

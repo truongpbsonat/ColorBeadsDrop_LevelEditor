@@ -6,7 +6,7 @@
   "time": 60,
   "levelName": "Level_14",
   "grid": {
-    "rows": 6,
+    "rows": 5,
     "columns": 5,
     "cells": [
       {
@@ -374,51 +374,6 @@
         "entity": {
           "type": "Wall",
           "entityId": "wall_4_4_9vtr",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 0,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_0_xeck",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 1,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_1_zvgm",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 2,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_2_8y50",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 3,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_3_4u3j",
-          "blocksPath": true
-        }
-      },
-      {
-        "row": 5,
-        "column": 4,
-        "entity": {
-          "type": "Wall",
-          "entityId": "wall_5_4_b7ee",
           "blocksPath": true
         }
       }
@@ -991,5 +946,9 @@
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "HiddenShooter",
+    "IceShooter"
+  ]
 }

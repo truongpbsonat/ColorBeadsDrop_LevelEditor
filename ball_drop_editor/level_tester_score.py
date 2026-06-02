@@ -22,6 +22,7 @@ class DifficultyMetrics:
     same_color_route_traps: int = 0
     conveyor_pressure: float = 0.0
     unlock_depth: float = 0.0
+    tunnel_pressure: float = 0.0
     obstacle_pressure: float = 0.0
 
 
@@ -139,8 +140,21 @@ class SolverScoreAdapter:
             same_color_route_traps=max(0, same_color - 1) if action.color in front_colors else 0,
             conveyor_pressure=moving / max(1, CONVEYOR_SLOTS),
             unlock_depth=unlock_depth,
+            tunnel_pressure=self._tunnel_pressure(state, action.row, action.column),
             obstacle_pressure=self._obstacle_pressure(state, action.row, action.column),
         )
+
+    def _tunnel_pressure(self, state: GameState, row: int, col: int) -> float:
+        pressure = 0.0
+        for index, cell in enumerate(state.cells):
+            if cell.type != "Tunnel":
+                continue
+            rr, cc = divmod(index, state.cols)
+            if cell.queue:
+                pressure += 0.08 * len(cell.queue)
+            if abs(rr - row) + abs(cc - col) <= 2:
+                pressure += 0.25
+        return min(1.0, pressure)
 
     def _obstacle_pressure(self, state: GameState, row: int, col: int) -> float:
         pressure = 0.0
@@ -164,6 +178,7 @@ class SolverScoreAdapter:
         score += metrics.same_color_route_traps * 11.0
         score += metrics.conveyor_pressure * 18.0
         score += metrics.unlock_depth * 12.0
+        score += metrics.tunnel_pressure * 12.0
         score += metrics.obstacle_pressure * 14.0
         return min(100.0, score)
 
@@ -203,5 +218,6 @@ class SolverScoreAdapter:
             ),
             conveyor_pressure=sum(item.metrics.conveyor_pressure for item in per_click) / count,
             unlock_depth=sum(item.metrics.unlock_depth for item in per_click) / count,
+            tunnel_pressure=sum(item.metrics.tunnel_pressure for item in per_click) / count,
             obstacle_pressure=sum(item.metrics.obstacle_pressure for item in per_click) / count,
         )
