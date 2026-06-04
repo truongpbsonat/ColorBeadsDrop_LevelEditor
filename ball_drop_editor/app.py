@@ -16,6 +16,7 @@ from .level_data import (
     make_empty_level,
     make_shooter_entity,
     make_shooter_modifiers,
+    make_tray_modifiers,
     make_tunnel_entity,
     make_wall_entity,
     normalize_runtime_level,
@@ -65,6 +66,7 @@ class BallDropLevelEditor(tk.Tk):
         self.tunnel_queue_button_frames: Dict[int, tk.Frame] = {}
         self.tunnel_queue_drag_index: Optional[int] = None
         self._syncing_cell_editor = False
+        self._syncing_gate_direct_controls = False
 
         self._init_level_meta_vars()
         self._load_icon_images()
@@ -651,6 +653,8 @@ class BallDropLevelEditor(tk.Tk):
         self.gate_selection_label = ttk.Label(controls, text="Selected: Gate 0")
         self.gate_selection_label.grid(row=0, column=0, columnspan=10, sticky="w", pady=(0, 6))
         self.add_layer_enabled_var = tk.BooleanVar(value=False)
+        self.selected_tray_ice_modifier = tk.BooleanVar(value=False)
+        self.selected_tray_ice_hp = tk.IntVar(value=3)
 
         ttk.Button(controls, text="+ Tray", command=self.add_tray_to_selected_gate).grid(row=1, column=0, padx=(0, 4), pady=2)
         ttk.Button(controls, text="Up", command=lambda: self.move_selected_tray(-1)).grid(row=1, column=1, padx=4, pady=2)
@@ -665,6 +669,29 @@ class BallDropLevelEditor(tk.Tk):
         tray_id_entry.grid(row=2, column=1, columnspan=2, sticky="w", padx=(4, 12), pady=(8, 0))
         tray_id_entry.bind("<Return>", lambda e: self.apply_selected_tray_fields())
         tray_id_entry.bind("<FocusOut>", lambda e: self.apply_selected_tray_fields())
+
+        modifier_controls = ttk.Frame(controls)
+        modifier_controls.grid(row=2, column=3, columnspan=4, sticky="w", padx=(8, 0), pady=(8, 0))
+        ttk.Checkbutton(
+            modifier_controls,
+            text="Ice",
+            variable=self.selected_tray_ice_modifier,
+            command=self.on_selected_tray_modifier_change,
+        ).pack(side="left")
+        ttk.Label(modifier_controls, text="HP").pack(side="left", padx=(10, 4))
+        self.selected_tray_ice_hp_spin = ttk.Spinbox(
+            modifier_controls,
+            from_=1,
+            to=999,
+            textvariable=self.selected_tray_ice_hp,
+            width=6,
+            command=self.apply_selected_tray_modifiers,
+        )
+        self.selected_tray_ice_hp_spin.pack(side="left")
+        self.selected_tray_ice_hp_spin.bind("<Return>", self.apply_selected_tray_modifiers)
+        self.selected_tray_ice_hp_spin.bind("<FocusOut>", self.apply_selected_tray_modifiers)
+        ttk.Button(modifier_controls, text="Apply Modifier", command=self.apply_selected_tray_modifiers).pack(side="left", padx=(8, 0))
+        ttk.Button(modifier_controls, text="Remove Modifier", command=self.remove_selected_tray_modifiers).pack(side="left", padx=(4, 0))
 
         layer_controls = ttk.Frame(controls)
         layer_controls.grid(row=1, column=7, rowspan=2, sticky="e", padx=(18, 0))
@@ -694,12 +721,19 @@ class BallDropLevelEditor(tk.Tk):
         count_spin.grid(row=1, column=5, sticky="w", padx=(4, 0), pady=(8, 0))
         count_spin.bind("<Return>", lambda e: self.apply_selected_layer_fields())
         count_spin.bind("<FocusOut>", lambda e: self.apply_selected_layer_fields())
+        self.update_selected_tray_modifier_state()
 
     def update_add_layer_button_state(self):
         if not hasattr(self, "add_layer_button"):
             return
         state = "normal" if self.add_layer_enabled_var.get() else "disabled"
         self.add_layer_button.configure(state=state)
+
+    def update_selected_tray_modifier_state(self):
+        if not hasattr(self, "selected_tray_ice_hp_spin"):
+            return
+        state = "normal" if self.selected_tray_ice_modifier.get() else "disabled"
+        self.selected_tray_ice_hp_spin.configure(state=state)
 
     def _build_json_preview(self, parent):
         parent.rowconfigure(0, weight=1)
@@ -1247,30 +1281,45 @@ class BallDropLevelEditor(tk.Tk):
     def refresh_gate_direct_controls(self):
         if not hasattr(self, "gate_selection_label"):
             return
-        gate = self._get_gate_by_index(self.selected_gate_index)
-        trays = gate.get("trayQueue", []) if gate else []
-        if self.selected_tray_index is None or not trays:
-            self.gate_selection_label.configure(text=self._selection_summary())
-            self.selected_tray_id_var.set("")
-            self.selected_layer_var.set(0)
-            self.selected_layer_color_var.set("Blue")
-            self.selected_layer_count_var.set(3)
-            self.selected_layer_spin.configure(to=0)
-            return
+        was_syncing = self._syncing_gate_direct_controls
+        self._syncing_gate_direct_controls = True
+        try:
+            gate = self._get_gate_by_index(self.selected_gate_index)
+            trays = gate.get("trayQueue", []) if gate else []
+            if self.selected_tray_index is None or not trays:
+                self.gate_selection_label.configure(text=self._selection_summary())
+                self.selected_tray_id_var.set("")
+                self.selected_tray_ice_modifier.set(False)
+                self.selected_tray_ice_hp.set(3)
+                self.update_selected_tray_modifier_state()
+                self.selected_layer_var.set(0)
+                self.selected_layer_color_var.set("Blue")
+                self.selected_layer_count_var.set(3)
+                self.selected_layer_spin.configure(to=0)
+                return
 
-        tray = trays[self.selected_tray_index]
-        layers = tray.setdefault("layers", [])
-        if not layers:
-            layers.append(self._default_tray_layer())
-        layer = layers[self.selected_layer_index]
-        self.gate_selection_label.configure(
-            text=f"{self._selection_summary()} / Layer {self.selected_layer_index}"
-        )
-        self.selected_tray_id_var.set(tray.get("trayId", ""))
-        self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
-        self.selected_layer_var.set(self.selected_layer_index)
-        self.selected_layer_color_var.set(layer.get("colorId", "Blue"))
-        self.selected_layer_count_var.set(max(1, safe_int(str(layer.get("requiredCount", 3)), 3)))
+            tray = trays[self.selected_tray_index]
+            layers = tray.setdefault("layers", [])
+            if not layers:
+                layers.append(self._default_tray_layer())
+            layer = layers[self.selected_layer_index]
+            ice_modifier = self._tray_ice_modifier(tray)
+            self.gate_selection_label.configure(
+                text=f"{self._selection_summary()} / Layer {self.selected_layer_index}"
+            )
+            self.selected_tray_id_var.set(tray.get("trayId", ""))
+            self.selected_tray_ice_modifier.set(ice_modifier is not None)
+            if ice_modifier is not None:
+                self.selected_tray_ice_hp.set(max(1, safe_int(str(ice_modifier.get("hp", 3)), 3)))
+            else:
+                self.selected_tray_ice_hp.set(3)
+            self.update_selected_tray_modifier_state()
+            self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
+            self.selected_layer_var.set(self.selected_layer_index)
+            self.selected_layer_color_var.set(layer.get("colorId", "Blue"))
+            self.selected_layer_count_var.set(max(1, safe_int(str(layer.get("requiredCount", 3)), 3)))
+        finally:
+            self._syncing_gate_direct_controls = was_syncing
 
     def _default_tray_layer(self) -> Dict[str, Any]:
         return {"colorId": "Blue", "requiredCount": 3}
@@ -1321,6 +1370,17 @@ class BallDropLevelEditor(tk.Tk):
         if 0 <= tray_index < len(trays):
             return trays[tray_index]
         return None
+
+    def _tray_ice_modifier(self, tray: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not tray:
+            return None
+        return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "Ice"), None)
+
+    def _selected_tray_modifiers(self) -> List[Dict[str, Any]]:
+        return make_tray_modifiers(
+            ice=self.selected_tray_ice_modifier.get(),
+            ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), 3)),
+        )
 
     def draw_gate_preview(self):
         if not hasattr(self, "gate_preview_canvas"):
@@ -1466,6 +1526,24 @@ class BallDropLevelEditor(tk.Tk):
                 dot_x = x + 11 + i * 15
                 canvas.create_oval(dot_x - 4, y + 4, dot_x + 4, y + 12, fill=self._shade_hex(color, -0.12), outline=self._shade_hex(color, -0.4))
 
+        ice_modifier = self._tray_ice_modifier(tray)
+        if ice_modifier is not None:
+            hp = max(1, safe_int(str(ice_modifier.get("hp", 3)), 3))
+            badge_x1 = x + width - 28
+            badge_y1 = y + height - 13
+            self._create_round_rect(
+                canvas,
+                badge_x1,
+                badge_y1,
+                x + width - 4,
+                y + height - 3,
+                4,
+                fill="#DFF8FF",
+                outline="#72D7F7",
+                width=1,
+            )
+            canvas.create_text(x + width - 16, y + height - 8, text=f"I{hp}", fill="#0F3E5E", font=("Arial", 7, "bold"))
+
     def _is_multi_select_event(self, event) -> bool:
         state = getattr(event, "state", 0)
         return bool(state & 0x0001 or state & 0x0004)
@@ -1558,6 +1636,67 @@ class BallDropLevelEditor(tk.Tk):
         trays[self.selected_tray_index]["trayId"] = new_id
         self.refresh_gate_outputs()
 
+    def on_selected_tray_modifier_change(self):
+        self.update_selected_tray_modifier_state()
+        self.apply_selected_tray_modifiers()
+
+    def apply_selected_tray_modifiers(self, event=None):
+        if self._syncing_gate_direct_controls:
+            return None
+        targets = self._selected_tray_targets()
+        if not targets:
+            messagebox.showwarning("No Tray", "Select a tray first.")
+            return None
+
+        modifiers = self._selected_tray_modifiers()
+        pending = []
+        for tray_ref in targets:
+            tray = self._get_tray_by_ref(tray_ref)
+            if tray is not None and tray.get("modifiers", []) != modifiers:
+                pending.append(tray_ref)
+
+        if not pending:
+            return None
+
+        self.record_history()
+        for tray_ref in pending:
+            tray = self._get_tray_by_ref(tray_ref)
+            if tray is not None:
+                tray["modifiers"] = copy.deepcopy(modifiers)
+        self.refresh_gate_direct_controls()
+        self.draw_gate_preview()
+        self.refresh_gate_outputs()
+        return None
+
+    def remove_selected_tray_modifiers(self):
+        targets = self._selected_tray_targets()
+        if not targets:
+            messagebox.showwarning("No Tray", "Select a tray first.")
+            return
+
+        pending = []
+        for tray_ref in targets:
+            tray = self._get_tray_by_ref(tray_ref)
+            if tray is not None and tray.get("modifiers"):
+                pending.append(tray_ref)
+
+        if not pending:
+            self.selected_tray_ice_modifier.set(False)
+            self.update_selected_tray_modifier_state()
+            return
+
+        self.record_history()
+        for tray_ref in pending:
+            tray = self._get_tray_by_ref(tray_ref)
+            if tray is not None:
+                tray["modifiers"] = []
+        self.selected_tray_ice_modifier.set(False)
+        self.selected_tray_ice_hp.set(3)
+        self.update_selected_tray_modifier_state()
+        self.refresh_gate_direct_controls()
+        self.draw_gate_preview()
+        self.refresh_gate_outputs()
+
     def apply_selected_layer_fields(self):
         targets = self._selected_tray_targets()
         if not targets:
@@ -1615,7 +1754,8 @@ class BallDropLevelEditor(tk.Tk):
             new_index = len(trays)
             trays.append({
                 "trayId": short_id("t"),
-                "layers": [self._default_tray_layer()]
+                "layers": [self._default_tray_layer()],
+                "modifiers": []
             })
             tray_ref = (gate_index, new_index)
             new_selection.add(tray_ref)
@@ -1909,7 +2049,8 @@ class BallDropLevelEditor(tk.Tk):
             gates.append(gate)
         gate.setdefault("trayQueue", []).append({
             "trayId": short_id("t"),
-            "layers": [{"colorId": "Blue", "requiredCount": 3}]
+            "layers": [{"colorId": "Blue", "requiredCount": 3}],
+            "modifiers": []
         })
         self.refresh_gate_ui()
         self.refresh_gate_outputs()

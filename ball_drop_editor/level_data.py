@@ -86,6 +86,19 @@ def make_shooter_modifiers(
     return modifiers
 
 
+def make_tray_modifiers(
+    ice: bool = False,
+    ice_hp: int = 3,
+) -> List[Dict[str, Any]]:
+    modifiers: List[Dict[str, Any]] = []
+    if ice:
+        modifiers.append({
+            "type": "Ice",
+            "hp": max(1, ice_hp),
+        })
+    return modifiers
+
+
 def make_shooter_entity(
     row: int,
     col: int,
@@ -318,7 +331,6 @@ def _normalize_shooter_group(group: Dict[str, Any]) -> Dict[str, Any]:
         "groupId": str(group.get("groupId", "")).strip(),
         "type": group.get("type", "None"),
         "shooterIds": [str(shooter_id) for shooter_id in group.get("shooterIds", [])],
-        "rule": group.get("rule", "None"),
     }
 
 
@@ -333,6 +345,7 @@ def _normalize_tray(tray: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "trayId": str(tray.get("trayId", "")).strip(),
         "layers": [_normalize_tray_layer(layer) for layer in tray.get("layers", [])],
+        "modifiers": [_normalize_tray_modifier(modifier) for modifier in tray.get("modifiers", [])],
     }
 
 
@@ -341,3 +354,11 @@ def _normalize_tray_layer(layer: Dict[str, Any]) -> Dict[str, Any]:
         "colorId": _enum_name(layer.get("colorId"), BALL_COLORS, "None"),
         "requiredCount": safe_int(str(layer.get("requiredCount", 0)), 0),
     }
+
+
+def _normalize_tray_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
+    modifier_type = modifier.get("type")
+    normalized = {"type": modifier_type}
+    if modifier_type == "Ice":
+        normalized["hp"] = max(1, safe_int(str(modifier.get("hp", 3)), 3))
+    return normalized

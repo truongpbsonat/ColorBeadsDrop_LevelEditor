@@ -9,9 +9,9 @@ from .constants import (
     GRID_OBSTACLE_SHAPE_TYPES,
     GRID_OBSTACLE_TYPES,
     RUNTIME_ENTITY_TYPES,
-    SHOOTER_GROUP_RULES,
     SHOOTER_GROUP_TYPES,
     SHOOTER_MODIFIER_TYPES,
+    TRAY_MODIFIER_TYPES,
 )
 
 LEGACY_GRID_CELL_FIELDS = {"type", "shooter", "wall", "tunnel", "portal", "generator", "blocker"}
@@ -154,6 +154,7 @@ class LevelValidator:
                     if required <= 0:
                         errors.append(f"Tray {tray.get('trayId')} layer requiredCount phải > 0.")
                     color_need[color] += max(0, required)
+                self._validate_tray_modifiers(tray, errors)
 
         for color in sorted(color_need):
             if color not in BALL_COLORS or color == "None":
@@ -198,6 +199,15 @@ class LevelValidator:
             if mtype == "Ice" and modifier.get("hp", 1) <= 0:
                 errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
 
+    def _validate_tray_modifiers(self, tray: Dict[str, Any], errors: List[str]) -> None:
+        tray_id = tray.get("trayId")
+        for modifier in tray.get("modifiers", []):
+            mtype = modifier.get("type")
+            if mtype not in TRAY_MODIFIER_TYPES:
+                errors.append(f"Tray modifier type không hỗ trợ: {mtype}.")
+            if mtype == "Ice" and modifier.get("hp", 3) <= 0:
+                errors.append(f"Ice tray {tray_id} hp phải > 0.")
+
     def _validate_obstacles(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
         rows = grid.get("rows", 0)
         cols = grid.get("columns", 0)
@@ -223,8 +233,6 @@ class LevelValidator:
             group_id = group.get("groupId")
             if group.get("type") not in SHOOTER_GROUP_TYPES:
                 errors.append(f"ShooterGroup {group_id} has invalid type: {group.get('type')}.")
-            if group.get("rule") not in SHOOTER_GROUP_RULES:
-                errors.append(f"ShooterGroup {group_id} has invalid rule: {group.get('rule')}.")
             for shooter_id in group.get("shooterIds", []):
                 if shooter_id not in shooter_ids:
                     errors.append(f"ShooterGroup {group.get('groupId')} tham chiếu shooterId không tồn tại: {shooter_id}.")
