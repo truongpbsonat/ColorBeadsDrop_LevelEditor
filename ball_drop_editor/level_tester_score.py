@@ -169,6 +169,21 @@ class SolverScoreAdapter:
             distance = abs(rr - row) + abs(cc - col)
             if distance <= 2:
                 pressure += 0.25
+        front_trays = [
+            (gate_index, gate[0])
+            for gate_index, gate in enumerate(state.gates)
+            if gate
+        ]
+        for index, (_gate_index, tray) in enumerate(front_trays):
+            if tray.ice_hp <= 0:
+                continue
+            pressure += 0.12
+            for neighbor_index in (index - 1, index + 1):
+                if not (0 <= neighbor_index < len(front_trays)):
+                    continue
+                _neighbor_gate_index, neighbor = front_trays[neighbor_index]
+                if neighbor.ice_hp <= 0 and neighbor.layers:
+                    pressure += 0.10
         return min(1.0, pressure)
 
     def _metrics_score(self, metrics: DifficultyMetrics) -> float:

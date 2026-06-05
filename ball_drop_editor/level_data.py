@@ -282,6 +282,13 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
         if isinstance(obstacle, dict) and obstacle.get("type") == "IceBlock":
             found.add("IceBlock")
 
+    gate_system = level.get("gateSystem", {}) or {}
+    for gate in gate_system.get("gates", []) or []:
+        for tray in gate.get("trayQueue", []) or []:
+            for modifier in tray.get("modifiers", []) or []:
+                if isinstance(modifier, dict) and modifier.get("type") == "Ice":
+                    found.add("IceTray")
+
     return sorted(found)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import queue
 import threading
@@ -21,7 +22,12 @@ from .level_generator import (
     load_template_folder,
     select_template_for_config,
 )
+from .level_data import normalize_runtime_level
+from .level_tester_score import SolverScoreAdapter, SolverScoreResult
 from .utils import safe_float, safe_int
+from .validator import LevelValidator
+
+EMPTY_CELL_STRATEGIES = ("Add Shooters", "Compact Grid Then Add Shooters")
 
 
 class LevelGeneratorWindow(tk.Toplevel):
@@ -37,6 +43,9 @@ class LevelGeneratorWindow(tk.Toplevel):
         self.preview_candidate: Optional[CandidateResult] = None
         self.template_level: Optional[Dict[str, Any]] = None
         self.template_levels: List[Dict[str, Any]] = []
+        self.reference_level: Optional[Dict[str, Any]] = None
+        self.reference_curve_targets: List[float] = []
+        self.reference_score: Optional[SolverScoreResult] = None
 
         self._init_vars()
         self._build_ui()
@@ -50,6 +59,7 @@ class LevelGeneratorWindow(tk.Toplevel):
         gate_system = level.get("gateSystem", {})
         self.mode_var = tk.StringVar(value="Preset")
         self.template_folder_var = tk.StringVar(value="")
+        self.reference_file_var = tk.StringVar(value="")
         self.rows_var = tk.IntVar(value=int(grid.get("rows", 6) or 6))
         self.cols_var = tk.IntVar(value=int(grid.get("columns", 5) or 5))
         self.gates_var = tk.IntVar(value=int(gate_system.get("gateCount", 4) or 4))
@@ -71,8 +81,10 @@ class LevelGeneratorWindow(tk.Toplevel):
         self.allow_wall_var = tk.BooleanVar(value=True)
         self.allow_tunnel_var = tk.BooleanVar(value=True)
         self.allow_iceblock_var = tk.BooleanVar(value=True)
+        self.allow_icetray_var = tk.BooleanVar(value=True)
         self.tunnel_queue_min_var = tk.IntVar(value=1)
         self.tunnel_queue_max_var = tk.IntVar(value=2)
+        self.empty_cell_strategy_var = tk.StringVar(value=EMPTY_CELL_STRATEGIES[0])
         self.override_capacity_var = tk.BooleanVar(value=False)
         self.capacity_var = tk.IntVar(value=9)
         self.tray_unit_var = tk.IntVar(value=3)
@@ -84,6 +96,7 @@ class LevelGeneratorWindow(tk.Toplevel):
         self.export_folder_var = tk.StringVar(value=getattr(self.master, "level_folder", os.getcwd()))
         self.status_var = tk.StringVar(value="Ready")
 
+        self.phase_enabled_var = tk.BooleanVar(value=True)
         self.phase_name_var = tk.StringVar(value="Spike")
         self.phase_start_var = tk.IntVar(value=1)
         self.phase_end_var = tk.IntVar(value=5)
@@ -107,11 +120,12 @@ class LevelGeneratorWindow(tk.Toplevel):
         top = ttk.Frame(self, padding=8)
         top.pack(fill="x")
         ttk.Label(top, textvariable=self.status_var).pack(side="left")
-        ttk.Button(top, text="Generate Preview", command=self.generate_preview).pack(side="right", padx=(4, 0))
-        ttk.Button(top, text="Apply to Editor", command=self.apply_to_editor).pack(side="right", padx=4)
-        ttk.Button(top, text="Export Single", command=self.export_single).pack(side="right", padx=4)
-        ttk.Button(top, text="Batch Export", command=self.batch_export).pack(side="right", padx=4)
-        ttk.Button(top, text="Cancel", command=self.cancel).pack(side="right", padx=4)
+        actions = ttk.Frame(top)
+        actions.pack(side="right")
+        ttk.Button(actions, text="Gen 1 Level", command=self.generate_preview).pack(side="left", padx=(0, 4))
+        ttk.Button(actions, text="Apply to Editor", command=self.apply_to_editor).pack(side="left", padx=4)
+        ttk.Button(actions, text="Export Level", command=self.export_single).pack(side="left", padx=4)
+        ttk.Button(actions, text="Cancel", command=self.cancel).pack(side="left", padx=(4, 0))
 
         body = ttk.PanedWindow(self, orient="horizontal")
         body.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -150,10 +164,13 @@ class LevelGeneratorWindow(tk.Toplevel):
         source.columnconfigure(1, weight=1)
         ttk.Radiobutton(source, text="Preset Generation", variable=self.mode_var, value="Preset", command=self._sync_source_state).grid(row=0, column=0, sticky="w")
         ttk.Radiobutton(source, text="Template Folder Generation", variable=self.mode_var, value="Template Folder", command=self._sync_source_state).grid(row=1, column=0, sticky="w")
+        ttk.Radiobutton(source, text="Reference Level File", variable=self.mode_var, value="Reference Level File", command=self._sync_source_state).grid(row=2, column=0, sticky="w")
         ttk.Entry(source, textvariable=self.template_folder_var).grid(row=1, column=1, sticky="ew", padx=(8, 4))
         ttk.Button(source, text="Folder", command=self.choose_template_folder, width=8).grid(row=1, column=2, padx=2)
         ttk.Button(source, text="Analyze", command=self.analyze_templates, width=9).grid(row=1, column=3, padx=2)
         ttk.Button(source, text="Use Current", command=self.use_current_as_template, width=11).grid(row=0, column=3, padx=2)
+        ttk.Entry(source, textvariable=self.reference_file_var).grid(row=2, column=1, sticky="ew", padx=(8, 4))
+        ttk.Button(source, text="Load Reference", command=self.load_reference_file, width=14).grid(row=2, column=2, columnspan=2, sticky="w", padx=2)
 
         preset = ttk.LabelFrame(frame, text="Preset Generation", padding=6)
         preset.grid(row=1, column=0, sticky="ew", padx=(0, 4), pady=(0, 6))
@@ -209,6 +226,7 @@ class LevelGeneratorWindow(tk.Toplevel):
         ttk.Checkbutton(devices, text="Wall", variable=self.allow_wall_var).grid(row=0, column=0, sticky="w", padx=(0, 12))
         ttk.Checkbutton(devices, text="Tunnel", variable=self.allow_tunnel_var).grid(row=0, column=1, sticky="w", padx=(0, 12))
         ttk.Checkbutton(devices, text="IceBlock", variable=self.allow_iceblock_var).grid(row=0, column=2, sticky="w", padx=(0, 12))
+        ttk.Checkbutton(devices, text="Ice Tray", variable=self.allow_icetray_var).grid(row=0, column=3, sticky="w", padx=(0, 12))
         ttk.Label(devices, text="Tunnel Queue Min").grid(row=1, column=0, sticky="w", pady=(4, 0))
         ttk.Entry(devices, textvariable=self.tunnel_queue_min_var, width=7).grid(row=1, column=1, sticky="w", pady=(4, 0))
         ttk.Label(devices, text="Max").grid(row=1, column=2, sticky="w", pady=(4, 0))
@@ -229,7 +247,7 @@ class LevelGeneratorWindow(tk.Toplevel):
         self.tray_unit_entry = ttk.Entry(capacity, textvariable=self.tray_unit_var, width=8)
         self.tray_unit_entry.grid(row=1, column=3, sticky="w", padx=(4, 10), pady=2)
 
-        runtime = ttk.LabelFrame(frame, text="Preview / Export", padding=6)
+        runtime = ttk.LabelFrame(frame, text="Single Level Workflow", padding=6)
         runtime.grid(row=3, column=0, columnspan=2, sticky="ew")
         runtime.columnconfigure(3, weight=1)
         ttk.Label(runtime, text="Budget").grid(row=0, column=0, sticky="w", pady=2)
@@ -241,23 +259,40 @@ class LevelGeneratorWindow(tk.Toplevel):
         ttk.Label(runtime, text="Export").grid(row=1, column=0, sticky="w", pady=2)
         ttk.Entry(runtime, textvariable=self.export_folder_var, width=36).grid(row=1, column=1, columnspan=3, sticky="ew", padx=(4, 4), pady=2)
         ttk.Button(runtime, text="Folder", command=self.choose_export_folder, width=8).grid(row=1, column=4, sticky="w", pady=2)
-        ttk.Label(runtime, text="Batch Start").grid(row=1, column=5, sticky="w", pady=2)
-        ttk.Entry(runtime, textvariable=self.batch_start_var, width=8).grid(row=1, column=6, sticky="w", padx=(4, 10), pady=2)
-        ttk.Label(runtime, text="Count").grid(row=1, column=7, sticky="w", pady=2)
-        ttk.Entry(runtime, textvariable=self.batch_count_var, width=8).grid(row=1, column=8, sticky="w", padx=(4, 0), pady=2)
+        ttk.Label(runtime, text="Empty Cells").grid(row=1, column=5, sticky="w", pady=2)
+        ttk.Combobox(
+            runtime,
+            textvariable=self.empty_cell_strategy_var,
+            values=EMPTY_CELL_STRATEGIES,
+            width=28,
+            state="readonly",
+        ).grid(row=1, column=6, sticky="w", padx=(4, 0), pady=2)
         help_text = (
             "Seed: optional random seed; same config + same seed recreates the same candidate order. "
-            "Export Single uses Level as the file number. "
-            "Batch Start: first level id/file number for Batch Export. Count: number of levels to try exporting. "
-            "Existing files are skipped, not overwritten."
+            "Gen 1 Level creates a PASS preview candidate. Apply to Editor and Export Level use that preview; "
+            "if no PASS preview exists, they generate one first. Existing files are skipped, not overwritten."
         )
         ttk.Label(runtime, text=help_text, wraplength=900, foreground="#4B5563").grid(
             row=2,
             column=0,
-            columnspan=9,
+            columnspan=7,
             sticky="w",
             pady=(6, 0),
         )
+
+        batch = ttk.LabelFrame(frame, text="Batch Export (Optional)", padding=6)
+        batch.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        batch.columnconfigure(7, weight=1)
+        ttk.Label(batch, text="Batch Start").grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Entry(batch, textvariable=self.batch_start_var, width=8).grid(row=0, column=1, sticky="w", padx=(4, 10), pady=2)
+        ttk.Label(batch, text="Count").grid(row=0, column=2, sticky="w", pady=2)
+        ttk.Entry(batch, textvariable=self.batch_count_var, width=8).grid(row=0, column=3, sticky="w", padx=(4, 10), pady=2)
+        ttk.Button(batch, text="Batch Export", command=self.batch_export).grid(row=0, column=4, sticky="w", padx=(4, 10), pady=2)
+        ttk.Label(
+            batch,
+            text="Uses the same config to export multiple files; existing files are skipped.",
+            foreground="#4B5563",
+        ).grid(row=0, column=5, columnspan=3, sticky="w", pady=2)
 
         self._sync_capacity_state()
         self._sync_source_state()
@@ -270,9 +305,10 @@ class LevelGeneratorWindow(tk.Toplevel):
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
 
-        columns = ("name", "start", "end", "target", "decision", "conveyor", "unlock", "same", "tunnel", "obstacle")
+        columns = ("enabled", "name", "start", "end", "target", "decision", "conveyor", "unlock", "same", "tunnel", "obstacle")
         self.phase_tree = ttk.Treeview(frame, columns=columns, show="headings", height=8, selectmode="browse")
         headings = [
+            ("enabled", "Use", 45),
             ("name", "Phase", 110),
             ("start", "Start", 55),
             ("end", "End", 55),
@@ -287,13 +323,17 @@ class LevelGeneratorWindow(tk.Toplevel):
         for key, title, width in headings:
             self.phase_tree.heading(key, text=title)
             self.phase_tree.column(key, width=width, anchor="center", stretch=(key == "name"))
+        self.phase_tree.tag_configure("disabled", foreground="#6B7280")
         self.phase_tree.grid(row=0, column=0, sticky="nsew")
         self.phase_tree.bind("<<TreeviewSelect>>", self.load_selected_phase)
+        self.phase_tree.bind("<Button-1>", self.toggle_phase_enabled)
 
         form = ttk.Frame(frame)
         form.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        for col in range(13):
+        for col in range(14):
             form.columnconfigure(col, weight=0)
+        ttk.Label(form, text="Use").grid(row=0, column=0, sticky="w")
+        ttk.Checkbutton(form, variable=self.phase_enabled_var).grid(row=1, column=0, padx=(0, 4), sticky="w")
         widgets = [
             ("Name", self.phase_name_var, 10),
             ("Start", self.phase_start_var, 5),
@@ -306,7 +346,7 @@ class LevelGeneratorWindow(tk.Toplevel):
             ("Tunnel", self.phase_tunnel_var, 4),
             ("Obs", self.phase_obstacle_var, 4),
         ]
-        col = 0
+        col = 1
         for label, var, width in widgets:
             ttk.Label(form, text=label).grid(row=0, column=col, sticky="w")
             if label == "Target":
@@ -328,13 +368,14 @@ class LevelGeneratorWindow(tk.Toplevel):
 
         log_frame = ttk.LabelFrame(parent, text="Log", padding=6)
         log_frame.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
-        log_frame.rowconfigure(0, weight=1)
+        log_frame.rowconfigure(1, weight=1)
         log_frame.columnconfigure(0, weight=1)
+        ttk.Button(log_frame, text="Clear Log", command=self.clear_log).grid(row=0, column=0, sticky="w", pady=(0, 4))
         self.log_text = tk.Text(log_frame, wrap="word", height=12, font=("Consolas", 10))
-        self.log_text.grid(row=0, column=0, sticky="nsew")
+        self.log_text.grid(row=1, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scroll.set)
-        scroll.grid(row=0, column=1, sticky="ns")
+        scroll.grid(row=1, column=1, sticky="ns")
 
     def _load_default_phases(self) -> None:
         if not hasattr(self, "phase_tree"):
@@ -351,26 +392,141 @@ class LevelGeneratorWindow(tk.Toplevel):
         ]
         for segment in segments:
             if segment[1] <= segment[2]:
-                self.phase_tree.insert("", "end", values=segment)
+                values = self._make_phase_tree_values(True, *segment)
+                self.phase_tree.insert("", "end", values=values)
+
+    def _phase_enabled_label(self, enabled: bool) -> str:
+        return "[x]" if enabled else "[ ]"
+
+    def _phase_label_is_enabled(self, value: Any) -> bool:
+        return str(value).strip().lower() in {"[x]", "x", "yes", "true", "1", "on", "enabled"}
+
+    def _make_phase_tree_values(
+        self,
+        enabled: bool,
+        name: Any,
+        start: Any,
+        end: Any,
+        target: Any,
+        decision: Any,
+        conveyor: Any,
+        unlock: Any,
+        same_color: Any,
+        tunnel: Any,
+        obstacle: Any,
+    ) -> tuple[Any, ...]:
+        target_name = target if target in DIFFICULTY_TARGETS else "Normal"
+        return (
+            self._phase_enabled_label(bool(enabled)),
+            str(name).strip() or "Phase",
+            max(1, safe_int(str(start), 1)),
+            max(1, safe_int(str(end), 1)),
+            target_name,
+            max(0, safe_int(str(decision), 0)),
+            max(0, safe_int(str(conveyor), 0)),
+            max(0, safe_int(str(unlock), 0)),
+            max(0, safe_int(str(same_color), 0)),
+            max(0, safe_int(str(tunnel), 0)),
+            max(0, safe_int(str(obstacle), 0)),
+        )
+
+    def _parse_phase_tree_values(self, values: Any) -> tuple[Any, ...]:
+        raw_values = list(values or [])
+        if len(raw_values) >= 11:
+            enabled = self._phase_label_is_enabled(raw_values[0])
+            phase_values = raw_values[1:]
+        else:
+            enabled = True
+            phase_values = raw_values
+        phase_values = phase_values + [""] * max(0, 10 - len(phase_values))
+        target_name = phase_values[3] if phase_values[3] in DIFFICULTY_TARGETS else "Normal"
+        return (
+            enabled,
+            str(phase_values[0]).strip() or "Phase",
+            max(1, safe_int(str(phase_values[1]), 1)),
+            max(1, safe_int(str(phase_values[2]), 1)),
+            target_name,
+            max(0, safe_int(str(phase_values[4]), 0)),
+            max(0, safe_int(str(phase_values[5]), 0)),
+            max(0, safe_int(str(phase_values[6]), 0)),
+            max(0, safe_int(str(phase_values[7]), 0)),
+            max(0, safe_int(str(phase_values[8]), 0)),
+            max(0, safe_int(str(phase_values[9]), 0)),
+        )
 
     def load_selected_phase(self, _event=None) -> None:
         selected = self.phase_tree.selection()
         if not selected:
             return
         values = self.phase_tree.item(selected[0], "values")
-        self.phase_name_var.set(values[0])
-        self.phase_start_var.set(safe_int(values[1], 1))
-        self.phase_end_var.set(safe_int(values[2], 1))
-        self.phase_target_var.set(values[3])
-        self.phase_decision_var.set(safe_int(values[4], 1))
-        self.phase_conveyor_var.set(safe_int(values[5], 1))
-        self.phase_unlock_var.set(safe_int(values[6], 1))
-        self.phase_same_color_var.set(safe_int(values[7], 0))
-        self.phase_tunnel_var.set(safe_int(values[8], 0))
-        self.phase_obstacle_var.set(safe_int(values[9], 0))
+        (
+            enabled,
+            name,
+            start,
+            end,
+            target,
+            decision,
+            conveyor,
+            unlock,
+            same_color,
+            tunnel,
+            obstacle,
+        ) = self._parse_phase_tree_values(values)
+        self.phase_enabled_var.set(enabled)
+        self.phase_name_var.set(name)
+        self.phase_start_var.set(start)
+        self.phase_end_var.set(end)
+        self.phase_target_var.set(target)
+        self.phase_decision_var.set(decision)
+        self.phase_conveyor_var.set(conveyor)
+        self.phase_unlock_var.set(unlock)
+        self.phase_same_color_var.set(same_color)
+        self.phase_tunnel_var.set(tunnel)
+        self.phase_obstacle_var.set(obstacle)
+
+    def toggle_phase_enabled(self, event) -> Optional[str]:
+        if self.phase_tree.identify_region(event.x, event.y) != "cell":
+            return None
+        if self.phase_tree.identify_column(event.x) != "#1":
+            return None
+        item = self.phase_tree.identify_row(event.y)
+        if not item:
+            return "break"
+        values = self.phase_tree.item(item, "values")
+        (
+            enabled,
+            name,
+            start,
+            end,
+            target,
+            decision,
+            conveyor,
+            unlock,
+            same_color,
+            tunnel,
+            obstacle,
+        ) = self._parse_phase_tree_values(values)
+        new_values = self._make_phase_tree_values(
+            not enabled,
+            name,
+            start,
+            end,
+            target,
+            decision,
+            conveyor,
+            unlock,
+            same_color,
+            tunnel,
+            obstacle,
+        )
+        self.phase_tree.item(item, values=new_values, tags=() if not enabled else ("disabled",))
+        self.phase_tree.selection_set(item)
+        self.phase_enabled_var.set(not enabled)
+        return "break"
 
     def upsert_phase(self) -> None:
-        values = (
+        values = self._make_phase_tree_values(
+            self.phase_enabled_var.get(),
             self.phase_name_var.get().strip() or "Phase",
             max(1, safe_int(str(self.phase_start_var.get()), 1)),
             max(1, safe_int(str(self.phase_end_var.get()), 1)),
@@ -382,11 +538,12 @@ class LevelGeneratorWindow(tk.Toplevel):
             max(0, safe_int(str(self.phase_tunnel_var.get()), 0)),
             max(0, safe_int(str(self.phase_obstacle_var.get()), 0)),
         )
+        tags = () if self.phase_enabled_var.get() else ("disabled",)
         selected = self.phase_tree.selection()
         if selected:
-            self.phase_tree.item(selected[0], values=values)
+            self.phase_tree.item(selected[0], values=values, tags=tags)
         else:
-            self.phase_tree.insert("", "end", values=values)
+            self.phase_tree.insert("", "end", values=values, tags=tags)
 
     def delete_phase(self) -> None:
         for item in self.phase_tree.selection():
@@ -406,7 +563,6 @@ class LevelGeneratorWindow(tk.Toplevel):
         )
         if not path:
             return
-        import json
 
         with open(path, "r", encoding="utf-8") as fh:
             self.template_level = json.load(fh)
@@ -414,6 +570,160 @@ class LevelGeneratorWindow(tk.Toplevel):
         self.mode_var.set("Template Folder")
         self._apply_template_to_fields()
         self._log(f"Loaded template: {path}")
+
+    def load_reference_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Choose reference level JSON",
+            filetypes=(("JSON files", "*.json"), ("All files", "*.*")),
+        )
+        if path:
+            self._load_reference_path(path)
+
+    def _load_reference_path(self, path: str) -> None:
+        with open(path, "r", encoding="utf-8") as fh:
+            level = json.load(fh)
+        normalize_runtime_level(level)
+        self.reference_level = copy.deepcopy(level)
+        self.reference_file_var.set(path)
+        self.mode_var.set("Reference Level File")
+
+        self._apply_reference_to_fields(level)
+        errors, warnings = LevelValidator().validate(level)
+        for error in errors[:5]:
+            self._log(f"REFERENCE ERROR: {error}")
+        for warning in warnings[:5]:
+            self._log(f"REFERENCE WARN: {warning}")
+
+        adapter = SolverScoreAdapter(time_budget=max(0.1, safe_float(str(self.budget_var.get()), 20.0)))
+        score = adapter.score_level(level)
+        self.reference_score = score
+        if score.status == "PASS" and score.per_click_scores:
+            self.reference_curve_targets = [item.score for item in score.per_click_scores]
+            phase_rows = self._reference_phase_rows(score)
+            self._replace_phase_rows(phase_rows)
+            self._log(
+                f"Loaded reference: {path}. Source solve=PASS, colors={self.color_count_var.get()}, "
+                f"clicks={len(score.per_click_scores)}, phases={len(phase_rows)}."
+            )
+        else:
+            self.reference_curve_targets = []
+            self._log(
+                f"Loaded reference: {path}. Source solve={score.status}; curve cloning requires a PASS source."
+            )
+        self._sync_source_state()
+        self._sync_color_state()
+
+    def _apply_reference_to_fields(self, level: Dict[str, Any]) -> None:
+        config = build_config_from_template(level, self._build_config())
+        self.rows_var.set(config.rows)
+        self.cols_var.set(config.cols)
+        self.gates_var.set(config.gate_count)
+        self.visible_var.set(config.max_visible_tray_per_gate)
+        self.time_var.set(config.time)
+        self.difficulty_var.set(config.difficulty)
+        self.shooter_count_var.set(config.shooter_count)
+        self.wall_count_var.set(config.wall_count)
+        colors = self._level_colors(level)
+        self.color_count_var.set(max(1, len(colors)))
+        self.color_mode_var.set("Manual")
+        for color, var in self.manual_color_vars.items():
+            var.set(color in colors)
+        self.capacity_var.set(config.shooter_capacity)
+        self.tray_unit_var.set(self._estimate_tray_unit(level))
+
+    def _level_colors(self, level: Dict[str, Any]) -> List[str]:
+        colors: set[str] = set()
+        for cell in level.get("grid", {}).get("cells", []) or []:
+            entity = cell.get("entity") or {}
+            if entity.get("type") == "Shooter":
+                color = entity.get("shooter", {}).get("colorId")
+                if color in BALL_COLORS and color != "None":
+                    colors.add(color)
+            elif entity.get("type") == "Tunnel":
+                for shooter in entity.get("shooterQueue", []) or []:
+                    color = shooter.get("colorId")
+                    if color in BALL_COLORS and color != "None":
+                        colors.add(color)
+        for gate in level.get("gateSystem", {}).get("gates", []) or []:
+            for tray in gate.get("trayQueue", []) or []:
+                for layer in tray.get("layers", []) or []:
+                    color = layer.get("colorId")
+                    if color in BALL_COLORS and color != "None":
+                        colors.add(color)
+        return [color for color in self.generator_palette if color in colors]
+
+    def _estimate_tray_unit(self, level: Dict[str, Any]) -> int:
+        counts: Dict[int, int] = {}
+        for gate in level.get("gateSystem", {}).get("gates", []) or []:
+            for tray in gate.get("trayQueue", []) or []:
+                for layer in tray.get("layers", []) or []:
+                    required = max(1, safe_int(str(layer.get("requiredCount", 0)), 1))
+                    counts[required] = counts.get(required, 0) + 1
+        if not counts:
+            return max(1, safe_int(str(self.tray_unit_var.get()), 3))
+        return max(counts, key=lambda value: (counts[value], value))
+
+    def _reference_phase_rows(self, score: SolverScoreResult) -> List[tuple[Any, ...]]:
+        groups: List[Dict[str, Any]] = []
+        for item in score.per_click_scores:
+            target = self._target_name_for_score(item.score)
+            if not groups or groups[-1]["target"] != target:
+                groups.append({"target": target, "items": []})
+            groups[-1]["items"].append(item)
+        while len(groups) > 8:
+            merge_index = min(
+                range(len(groups) - 1),
+                key=lambda index: abs(self._group_average(groups[index]) - self._group_average(groups[index + 1])),
+            )
+            groups[merge_index]["items"].extend(groups[merge_index + 1]["items"])
+            groups[merge_index]["target"] = self._target_name_for_score(self._group_average(groups[merge_index]))
+            groups.pop(merge_index + 1)
+
+        rows: List[tuple[Any, ...]] = []
+        for index, group in enumerate(groups, start=1):
+            items = group["items"]
+            avg_score = self._group_average(group)
+            target = self._target_name_for_score(avg_score)
+            metrics = [item.metrics for item in items]
+            active = sum(metric.active_choices for metric in metrics) / max(1, len(metrics))
+            decoys = sum(metric.decoys for metric in metrics) / max(1, len(metrics))
+            same = sum(metric.same_color_route_traps for metric in metrics) / max(1, len(metrics))
+            conveyor = sum(metric.conveyor_pressure for metric in metrics) / max(1, len(metrics))
+            unlock = sum(metric.unlock_depth for metric in metrics) / max(1, len(metrics))
+            tunnel = sum(metric.tunnel_pressure for metric in metrics) / max(1, len(metrics))
+            obstacle = sum(metric.obstacle_pressure for metric in metrics) / max(1, len(metrics))
+            rows.append(
+                self._make_phase_tree_values(
+                    True,
+                    f"Ref {index} {target}",
+                    items[0].click_index,
+                    items[-1].click_index,
+                    target,
+                    self._clamp_phase_weight(round((max(0.0, active - 1.0) + decoys) / 2.0)),
+                    self._clamp_phase_weight(round(conveyor * 3.0)),
+                    self._clamp_phase_weight(round(unlock * 3.0)),
+                    self._clamp_phase_weight(round(same)),
+                    self._clamp_phase_weight(round(tunnel * 3.0)),
+                    self._clamp_phase_weight(round(obstacle * 3.0)),
+                )
+            )
+        return rows
+
+    def _group_average(self, group: Dict[str, Any]) -> float:
+        items = group.get("items", [])
+        return sum(item.score for item in items) / max(1, len(items))
+
+    def _target_name_for_score(self, score: float) -> str:
+        return min(DIFFICULTY_TARGETS, key=lambda name: abs(DIFFICULTY_TARGETS[name] - score))
+
+    def _clamp_phase_weight(self, value: int) -> int:
+        return max(0, min(3, int(value)))
+
+    def _replace_phase_rows(self, rows: List[tuple[Any, ...]]) -> None:
+        for item in self.phase_tree.get_children():
+            self.phase_tree.delete(item)
+        for values in rows:
+            self.phase_tree.insert("", "end", values=values)
 
     def choose_template_folder(self) -> None:
         folder = filedialog.askdirectory(title="Choose template folder")
@@ -454,6 +764,9 @@ class LevelGeneratorWindow(tk.Toplevel):
         if folder:
             self.export_folder_var.set(folder)
 
+    def clear_log(self) -> None:
+        self.log_text.delete("1.0", "end")
+
     def _sync_capacity_state(self) -> None:
         state = "normal" if self.override_capacity_var.get() else "disabled"
         if hasattr(self, "capacity_entry"):
@@ -469,6 +782,8 @@ class LevelGeneratorWindow(tk.Toplevel):
             return
         if self.mode_var.get() == "Preset":
             self._log("Using preset generation inputs.")
+        elif self.mode_var.get() == "Reference Level File":
+            self._log("Using reference level file generation inputs.")
         else:
             self._log("Using template folder generation inputs.")
 
@@ -477,13 +792,44 @@ class LevelGeneratorWindow(tk.Toplevel):
         for button in getattr(self, "manual_color_buttons", []):
             button.configure(state=state)
 
+    def _has_enabled_phase(self) -> bool:
+        return any(
+            self._parse_phase_tree_values(self.phase_tree.item(item, "values"))[0]
+            for item in self.phase_tree.get_children()
+        )
+
+    def _ensure_active_phase(self) -> bool:
+        if self._has_enabled_phase():
+            return True
+        messagebox.showwarning("Phase Table", "Enable at least one phase before generation.")
+        return False
+
+    def _ensure_reference_ready(self) -> bool:
+        if self.mode_var.get() != "Reference Level File":
+            return True
+        if self.reference_level and self.reference_curve_targets:
+            return True
+        messagebox.showwarning(
+            "Reference Level",
+            "Load a reference level that solver can PASS before generating in Reference Level File mode.",
+        )
+        return False
+
     def generate_preview(self) -> None:
         if self._busy():
             return
-        self._start_worker("preview", self._worker_preview)
+        if not self._ensure_active_phase():
+            return
+        if not self._ensure_reference_ready():
+            return
+        self._start_worker("1 level", self._worker_preview)
 
     def export_single(self) -> None:
         if self._busy():
+            return
+        if not self._ensure_active_phase():
+            return
+        if not self._ensure_reference_ready():
             return
         folder = self.export_folder_var.get().strip()
         if not folder:
@@ -494,10 +840,23 @@ class LevelGeneratorWindow(tk.Toplevel):
         if os.path.exists(path):
             messagebox.showwarning("Export", f"File already exists and will not be overwritten:\n{path}")
             return
+        if self.preview_candidate and self.preview_candidate.score.status == "PASS":
+            if self._export_candidate(self.preview_candidate, path, level_id):
+                self.status_var.set(f"Exported level {level_id}.")
+                self._log(f"Exported PASS preview: {path}")
+            else:
+                self.status_var.set("Export skipped.")
+                self._log(f"Skip existing: {path}")
+            return
+        self._log("No PASS preview found. Generating one level before export.")
         self._start_worker("single export", self._worker_single_export)
 
     def batch_export(self) -> None:
         if self._busy():
+            return
+        if not self._ensure_active_phase():
+            return
+        if not self._ensure_reference_ready():
             return
         folder = self.export_folder_var.get().strip()
         if not folder:
@@ -506,11 +865,23 @@ class LevelGeneratorWindow(tk.Toplevel):
         self._start_worker("batch", self._worker_batch)
 
     def apply_to_editor(self) -> None:
-        if not self.preview_candidate or self.preview_candidate.score.status != "PASS":
-            messagebox.showwarning("Apply", "Generate a PASS preview candidate first.")
+        if self._busy():
             return
+        if self.preview_candidate and self.preview_candidate.score.status == "PASS":
+            self._apply_candidate_to_editor(self.preview_candidate)
+            return
+        if not self._ensure_active_phase():
+            return
+        if not self._ensure_reference_ready():
+            return
+        self._log("No PASS preview found. Generating one level before apply.")
+        self._start_worker("apply", self._worker_apply)
+
+    def _apply_candidate_to_editor(self, candidate: CandidateResult) -> None:
         if hasattr(self.master, "apply_generated_level"):
-            self.master.apply_generated_level(copy.deepcopy(self.preview_candidate.level))
+            self.master.apply_generated_level(copy.deepcopy(candidate.level))
+            self.preview_candidate = candidate
+            self.status_var.set("Applied generated level to editor.")
             self._log("Applied generated level to editor.")
         else:
             messagebox.showerror("Apply", "Editor does not expose apply_generated_level().")
@@ -541,6 +912,15 @@ class LevelGeneratorWindow(tk.Toplevel):
         except Exception as exc:
             self.result_queue.put(("error", str(exc)))
 
+    def _worker_apply(self) -> None:
+        config = self._build_config()
+        generator = DifficultyCurveGenerator(config)
+        try:
+            candidate = generator.generate_best(progress=self._progress, cancel_check=self.cancel_event.is_set)
+            self.result_queue.put(("apply_done", candidate))
+        except Exception as exc:
+            self.result_queue.put(("error", str(exc)))
+
     def _worker_single_export(self) -> None:
         folder = self.export_folder_var.get().strip()
         level_id = max(1, safe_int(str(self.level_var.get()), 1))
@@ -555,12 +935,18 @@ class LevelGeneratorWindow(tk.Toplevel):
         generator = DifficultyCurveGenerator(config)
         try:
             candidate = generator.generate_best(progress=self._progress, cancel_check=self.cancel_event.is_set)
-            if candidate.score.status == "PASS" and export_level(path, candidate.level, overwrite=False):
+            if candidate.score.status == "PASS" and self._export_candidate(candidate, path, level_id):
                 self.result_queue.put(("single_done", True, f"Exported PASS: {path}", candidate))
             else:
                 self.result_queue.put(("single_done", False, f"Failed level {level_id}: {candidate.score.status}", candidate))
         except Exception as exc:
             self.result_queue.put(("error", str(exc)))
+
+    def _export_candidate(self, candidate: CandidateResult, path: str, level_id: int) -> bool:
+        level = copy.deepcopy(candidate.level)
+        level["level"] = max(1, int(level_id))
+        level["levelName"] = f"Level_{level['level']}"
+        return export_level(path, level, overwrite=False)
 
     def _worker_batch(self) -> None:
         folder = self.export_folder_var.get().strip()
@@ -590,6 +976,8 @@ class LevelGeneratorWindow(tk.Toplevel):
                 else:
                     failed += 1
                     self.result_queue.put(("log", f"Failed level {level_id}: {candidate.score.status}"))
+                for note in candidate.notes:
+                    self.result_queue.put(("log", f"NOTE: {note}"))
             except Exception as exc:
                 failed += 1
                 self.result_queue.put(("log", f"Failed level {level_id}: {exc}"))
@@ -603,11 +991,17 @@ class LevelGeneratorWindow(tk.Toplevel):
         best: Optional[CandidateResult],
     ) -> None:
         best_label = best.score.status if best else "-"
+        reference_extra = ""
+        if candidate.structural_difference or candidate.reference_curve_error:
+            reference_extra = (
+                f", ref diff {candidate.structural_difference * 100:.1f}%, "
+                f"curve {candidate.reference_curve_error:.1f}"
+            )
         self.result_queue.put(
             (
                 "log",
                 f"Attempt {attempt}/{total}: {candidate.score.status}, "
-                f"target error {candidate.target_error:.1f}, best {best_label}",
+                f"target error {candidate.target_error:.1f}{reference_extra}, best {best_label}",
             )
         )
 
@@ -619,6 +1013,15 @@ class LevelGeneratorWindow(tk.Toplevel):
                 if kind == "preview":
                     self.preview_candidate = item[1]
                     self._render_candidate(self.preview_candidate)
+                elif kind == "apply_done":
+                    candidate = item[1]
+                    self.preview_candidate = candidate
+                    self._render_candidate(candidate)
+                    if candidate.score.status == "PASS":
+                        self._apply_candidate_to_editor(candidate)
+                    else:
+                        self.status_var.set(f"Apply failed: {candidate.score.status}")
+                        self._log(self.status_var.get())
                 elif kind == "single_done":
                     _, exported, message, candidate = item
                     if candidate is not None:
@@ -651,6 +1054,8 @@ class LevelGeneratorWindow(tk.Toplevel):
             self._log(f"ERROR: {error}")
         for warning in candidate.warnings[:8]:
             self._log(f"WARN: {warning}")
+        for note in candidate.notes[:12]:
+            self._log(f"NOTE: {note}")
         self._render_chart(candidate)
 
     def _render_chart(self, candidate: CandidateResult) -> None:
@@ -697,6 +1102,8 @@ class LevelGeneratorWindow(tk.Toplevel):
             allowed_devices.append("Tunnel")
         if self.allow_iceblock_var.get():
             allowed_devices.append("IceBlock")
+        if self.allow_icetray_var.get():
+            allowed_devices.append("IceTray")
         config = GeneratorConfig(
             rows=max(1, safe_int(str(self.rows_var.get()), 6)),
             cols=max(1, safe_int(str(self.cols_var.get()), 5)),
@@ -715,6 +1122,9 @@ class LevelGeneratorWindow(tk.Toplevel):
             allowed_devices=allowed_devices,
             tunnel_queue_min=max(1, safe_int(str(self.tunnel_queue_min_var.get()), 1)),
             tunnel_queue_max=max(1, safe_int(str(self.tunnel_queue_max_var.get()), 2)),
+            empty_cell_strategy=self.empty_cell_strategy_var.get()
+            if self.empty_cell_strategy_var.get() in EMPTY_CELL_STRATEGIES
+            else EMPTY_CELL_STRATEGIES[0],
             shooter_capacity=capacity,
             tray_unit=tray_unit,
             solver_budget=max(0.1, safe_float(str(self.budget_var.get()), 20.0)),
@@ -722,7 +1132,14 @@ class LevelGeneratorWindow(tk.Toplevel):
             phases=phases,
             seed=self._seed_value(),
         )
-        if self.mode_var.get() == "Template Folder":
+        if self.mode_var.get() == "Reference Level File":
+            if self.reference_level:
+                config.reference_level = copy.deepcopy(self.reference_level)
+                config.reference_curve_targets = list(self.reference_curve_targets)
+                config.reference_min_difference = 0.30
+            config.level_id = max(1, safe_int(str(self.level_var.get()), 1))
+            config.level_name = f"Level_{config.level_id}"
+        elif self.mode_var.get() == "Template Folder":
             if not self.template_levels and self.template_folder_var.get().strip():
                 self.template_levels = load_template_folder(self.template_folder_var.get().strip())
             selected = select_template_for_config(self.template_levels, config) if self.template_levels else self.template_level
@@ -755,19 +1172,34 @@ class LevelGeneratorWindow(tk.Toplevel):
             values = self.phase_tree.item(item, "values")
             if not values:
                 continue
+            (
+                enabled,
+                name,
+                start,
+                end,
+                target,
+                decision,
+                conveyor,
+                unlock,
+                same_color,
+                tunnel,
+                obstacle,
+            ) = self._parse_phase_tree_values(values)
+            if not enabled:
+                continue
             phases.append(
                 GeneratorPhase(
-                    name=str(values[0]),
-                    start_click=max(1, safe_int(values[1], 1)),
-                    end_click=max(1, safe_int(values[2], 1)),
-                    target=values[3] if values[3] in DIFFICULTY_TARGETS else "Normal",
-                    decision_trap=max(0, safe_int(values[4], 0)),
-                    conveyor_pressure=max(0, safe_int(values[5], 0)),
-                    unlock_maze=max(0, safe_int(values[6], 0)),
-                    same_color_route=max(0, safe_int(values[7], 0)),
-                    tunnel_pressure=max(0, safe_int(values[8], 0)),
-                    obstacle_pressure=max(0, safe_int(values[9], 0)),
-                    obstacle_types=list(GRID_OBSTACLE_TYPES),
+                    name=name,
+                    start_click=start,
+                    end_click=end,
+                    target=target,
+                    decision_trap=decision,
+                    conveyor_pressure=conveyor,
+                    unlock_maze=unlock,
+                    same_color_route=same_color,
+                    tunnel_pressure=tunnel,
+                    obstacle_pressure=obstacle,
+                    obstacle_types=list(GRID_OBSTACLE_TYPES) + ["IceTray"],
                 )
             )
         return phases
