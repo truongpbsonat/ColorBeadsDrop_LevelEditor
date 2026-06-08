@@ -7,7 +7,7 @@ import threading
 from tkinter import messagebox
 from typing import List, Optional
 
-from .constants import BALL_COLORS
+from .color_utils import SELECTABLE_BALL_COLORS
 from .level_generator import (
     CandidateResult,
     DifficultyCurveGenerator,
@@ -312,7 +312,7 @@ class LevelGeneratorWindowActionsMixin:
         return [
             color
             for color, var in self.manual_color_vars.items()
-            if var.get() and color in BALL_COLORS and color != "None"
+            if var.get() and color in SELECTABLE_BALL_COLORS
         ]
 
     def _seed_value(self) -> Optional[int]:

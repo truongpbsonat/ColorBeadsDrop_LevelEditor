@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from .editor_paths import DEFAULT_LEVEL_SAVE_DIR
 from .level_data import (
+    delete_grid_column,
+    delete_grid_row,
     detect_mechanics,
     find_cell,
     make_empty_level,
@@ -338,6 +340,33 @@ class EditorFileActionsMixin:
 
         open_level_generator(self)
 
+    def open_color_replace_tool(self):
+        from .color_replace_tool import open_color_replace_tool
+
+        open_color_replace_tool(self, self.level_folder, self.on_color_replace_tool_changed)
+
+    def on_color_replace_tool_changed(self, changed_paths: List[str]):
+        if not self.current_file:
+            self._refresh_level_folder_files()
+            return
+
+        current_path = os.path.normcase(os.path.abspath(self.current_file))
+        changed = {os.path.normcase(os.path.abspath(path)) for path in changed_paths}
+        if current_path not in changed:
+            self._refresh_level_folder_files()
+            return
+
+        if self.has_unsaved_changes():
+            messagebox.showwarning(
+                "Color Tool",
+                "The currently loaded level was changed on disk, but this editor still has unsaved changes.\n\n"
+                "Save or reload the current level before saving again, otherwise the disk color change may be overwritten.",
+            )
+            self._refresh_level_folder_files()
+            return
+
+        self._load_level_file(self.current_file, level_id=self._level_id_from_path(self.current_file))
+
     def apply_generated_level(self, level: Dict[str, Any]):
         self.record_history()
         normalize_runtime_level(level)
@@ -448,3 +477,104 @@ class EditorFileActionsMixin:
         self._refresh_grid_buttons()
         self._update_selected_label()
         self.refresh_json_preview()
+
+    def delete_selected_grid_row(self):
+        if not self.selected_cell:
+            messagebox.showwarning("Delete Row", "Select a grid cell first.")
+            return
+        row, _ = self.selected_cell
+        grid = self.level.get("grid", {})
+        current_rows = grid.get("rows", 4)
+        current_cols = grid.get("columns", 4)
+        if current_rows <= 1:
+            messagebox.showwarning("Delete Row", "The grid must keep at least one row.")
+            return
+        if not self._confirm_delete_grid_line("row", row):
+            return
+
+        self.record_history()
+        delete_grid_row(self.level, row)
+        self.rows_var.set(current_rows - 1)
+        self.cols_var.set(current_cols)
+        self._shift_selection_after_grid_line_delete("row", row)
+        self._refresh_grid_buttons()
+        self._update_selected_label()
+        self.refresh_json_preview()
+
+    def delete_selected_grid_column(self):
+        if not self.selected_cell:
+            messagebox.showwarning("Delete Column", "Select a grid cell first.")
+            return
+        _, col = self.selected_cell
+        grid = self.level.get("grid", {})
+        current_rows = grid.get("rows", 4)
+        current_cols = grid.get("columns", 4)
+        if current_cols <= 1:
+            messagebox.showwarning("Delete Column", "The grid must keep at least one column.")
+            return
+        if not self._confirm_delete_grid_line("column", col):
+            return
+
+        self.record_history()
+        delete_grid_column(self.level, col)
+        self.rows_var.set(current_rows)
+        self.cols_var.set(current_cols - 1)
+        self._shift_selection_after_grid_line_delete("column", col)
+        self._refresh_grid_buttons()
+        self._update_selected_label()
+        self.refresh_json_preview()
+
+    def _confirm_delete_grid_line(self, axis: str, index: int) -> bool:
+        axis_label = "row" if axis == "row" else "column"
+        affected = []
+        for cell in self.level.get("grid", {}).get("cells", []):
+            row = cell.get("row", 0)
+            col = cell.get("column", 0)
+            if (axis == "row" and row != index) or (axis == "column" and col != index):
+                continue
+            entity = cell.get("entity")
+            if entity:
+                affected.append((row, col, entity.get("type", "Unknown")))
+
+        if not affected:
+            return True
+
+        examples = ", ".join(f"({row},{col}) {entity_type}" for row, col, entity_type in affected[:8])
+        extra = "" if len(affected) <= 8 else f"\n...and {len(affected) - 8} more."
+        return messagebox.askyesno(
+            f"Delete {axis_label.title()}",
+            f"This will remove {axis_label} {index} and shift the grid.\n\n"
+            f"Non-empty cells affected: {len(affected)}\n"
+            f"{examples}{extra}\n\nContinue?"
+        )
+
+    def _shift_selection_after_grid_line_delete(self, axis: str, index: int):
+        grid = self.level.get("grid", {})
+        rows = grid.get("rows", 1)
+        cols = grid.get("columns", 1)
+
+        def shifted(cell):
+            if cell is None:
+                return None
+            row, col = cell
+            if axis == "row":
+                if row == index:
+                    return None
+                row = row - 1 if row > index else row
+            else:
+                if col == index:
+                    return None
+                col = col - 1 if col > index else col
+            if 0 <= row < rows and 0 <= col < cols:
+                return row, col
+            return None
+
+        self.selected_cell = shifted(self.selected_cell)
+        self.selected_grid_cells = {
+            next_cell
+            for cell in self.selected_grid_cells
+            for next_cell in [shifted(cell)]
+            if next_cell is not None
+        }
+        if self.selected_cell is None and self.selected_grid_cells:
+            self.selected_cell = sorted(self.selected_grid_cells)[0]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .color_utils import SELECTABLE_BALL_COLORS
 from .constants import BALL_COLORS, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES
 from .level_data import (
     detect_mechanics,
@@ -390,12 +391,12 @@ class DifficultyCurveCandidateMixin:
             selected = [
                 color
                 for color in self.config.manual_colors
-                if color in BALL_COLORS and color != "None"
+                if color in SELECTABLE_BALL_COLORS
             ]
             return selected[:requested] or selected
         auto_palette: List[str] = []
-        for color in DEFAULT_GENERATOR_COLORS + BALL_COLORS:
-            if color == "None" or color not in BALL_COLORS or color in auto_palette:
+        for color in DEFAULT_GENERATOR_COLORS + list(SELECTABLE_BALL_COLORS):
+            if color not in SELECTABLE_BALL_COLORS or color in auto_palette:
                 continue
             auto_palette.append(color)
         if requested > len(auto_palette):

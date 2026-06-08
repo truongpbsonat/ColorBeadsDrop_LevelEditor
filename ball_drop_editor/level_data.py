@@ -202,6 +202,55 @@ def set_grid_size(level: Dict[str, Any], rows: int, cols: int) -> None:
     level["grid"]["cells"] = cells
 
 
+def delete_grid_row(level: Dict[str, Any], row_index: int) -> None:
+    _delete_grid_line(level, "row", row_index)
+
+
+def delete_grid_column(level: Dict[str, Any], column_index: int) -> None:
+    _delete_grid_line(level, "column", column_index)
+
+
+def _delete_grid_line(level: Dict[str, Any], axis: str, index: int) -> None:
+    grid = level.setdefault("grid", {})
+    rows = max(1, safe_int(str(grid.get("rows", 4)), 4))
+    cols = max(1, safe_int(str(grid.get("columns", 4)), 4))
+    if axis == "row":
+        if rows <= 1 or not (0 <= index < rows):
+            return
+        new_rows, new_cols = rows - 1, cols
+    else:
+        if cols <= 1 or not (0 <= index < cols):
+            return
+        new_rows, new_cols = rows, cols - 1
+
+    shifted = {}
+    for cell in iter_cells(level):
+        row = safe_int(str(cell.get("row", 0)), 0)
+        col = safe_int(str(cell.get("column", 0)), 0)
+        next_pos = _position_after_deleted_grid_line(row, col, axis, index)
+        if next_pos is None:
+            continue
+        next_row, next_col = next_pos
+        if 0 <= next_row < new_rows and 0 <= next_col < new_cols:
+            shifted[(next_row, next_col)] = copy.deepcopy(cell)
+
+    grid["rows"] = new_rows
+    grid["columns"] = new_cols
+    cells = []
+    for row in range(new_rows):
+        for col in range(new_cols):
+            cells.append(_normalize_cell(copy.deepcopy(shifted.get((row, col), {})), row, col))
+    grid["cells"] = cells
+    grid["obstacles"] = _shift_obstacles_after_deleted_grid_line(
+        grid.get("obstacles", []),
+        axis,
+        index,
+        new_rows,
+        new_cols,
+    )
+    _prune_shooter_groups_to_existing_cells(grid)
+
+
 def entity_label(entity: Optional[Dict[str, Any]]) -> str:
     if not entity:
         return ""
@@ -331,6 +380,145 @@ def _normalize_entity(entity: Optional[Dict[str, Any]]) -> Optional[Dict[str, An
     if entity_type == "Wall":
         return normalized
     return normalized
+
+
+def _position_after_deleted_grid_line(row: int, col: int, axis: str, index: int) -> Optional[tuple[int, int]]:
+    if axis == "row":
+        if row == index:
+            return None
+        return (row - 1 if row > index else row), col
+    if col == index:
+        return None
+    return row, (col - 1 if col > index else col)
+
+
+def _shift_obstacles_after_deleted_grid_line(
+    obstacles: List[Dict[str, Any]],
+    axis: str,
+    index: int,
+    rows: int,
+    cols: int,
+) -> List[Dict[str, Any]]:
+    shifted_obstacles: List[Dict[str, Any]] = []
+    for obstacle in obstacles or []:
+        obstacle_copy = copy.deepcopy(obstacle)
+        shape = obstacle_copy.get("shape", {}) or {}
+        cells = _expand_obstacle_shape_cells(shape)
+        touches_deleted_line = any((row if axis == "row" else col) == index for row, col in cells)
+
+        if not touches_deleted_line:
+            obstacle_copy["shape"] = _shift_obstacle_shape(shape, axis, index)
+            shifted_obstacles.append(_normalize_obstacle(obstacle_copy))
+            continue
+
+        remapped_cells = []
+        seen = set()
+        for row, col in cells:
+            next_pos = _position_after_deleted_grid_line(row, col, axis, index)
+            if next_pos is None:
+                continue
+            next_row, next_col = next_pos
+            if not (0 <= next_row < rows and 0 <= next_col < cols):
+                continue
+            if (next_row, next_col) in seen:
+                continue
+            seen.add((next_row, next_col))
+            remapped_cells.append({"row": next_row, "column": next_col})
+
+        if not remapped_cells:
+            continue
+
+        origin_row = min(cell["row"] for cell in remapped_cells)
+        origin_col = min(cell["column"] for cell in remapped_cells)
+        obstacle_copy["shape"] = {
+            "type": "CustomCells",
+            "origin": {"row": origin_row, "column": origin_col},
+            "width": 1,
+            "height": 1,
+            "cells": sorted(remapped_cells, key=lambda cell: (cell["row"], cell["column"])),
+        }
+        shifted_obstacles.append(_normalize_obstacle(obstacle_copy))
+    return shifted_obstacles
+
+
+def _shift_obstacle_shape(shape: Dict[str, Any], axis: str, index: int) -> Dict[str, Any]:
+    shifted = copy.deepcopy(shape)
+    shape_type = shifted.get("type", "Rect")
+    if shape_type == "CustomCells":
+        remapped = []
+        for cell in shifted.get("cells", []) or []:
+            row = safe_int(str(cell.get("row", 0)), 0)
+            col = safe_int(str(cell.get("column", 0)), 0)
+            next_pos = _position_after_deleted_grid_line(row, col, axis, index)
+            if next_pos is not None:
+                next_row, next_col = next_pos
+                remapped.append({"row": next_row, "column": next_col})
+        shifted["cells"] = remapped
+    origin = shifted.get("origin", {}) or {}
+    origin_row = safe_int(str(origin.get("row", 0)), 0)
+    origin_col = safe_int(str(origin.get("column", 0)), 0)
+    next_origin = _position_after_deleted_grid_line(origin_row, origin_col, axis, index)
+    if next_origin is not None:
+        shifted["origin"] = {"row": next_origin[0], "column": next_origin[1]}
+    return shifted
+
+
+def _expand_obstacle_shape_cells(shape: Dict[str, Any]) -> List[tuple[int, int]]:
+    origin = shape.get("origin", {}) or {}
+    origin_row = safe_int(str(origin.get("row", 0)), 0)
+    origin_col = safe_int(str(origin.get("column", 0)), 0)
+    shape_type = shape.get("type", "Rect")
+    if shape_type == "CustomCells":
+        return [
+            (safe_int(str(cell.get("row", 0)), 0), safe_int(str(cell.get("column", 0)), 0))
+            for cell in shape.get("cells", []) or []
+        ]
+    if shape_type == "Plus":
+        return [
+            (origin_row, origin_col),
+            (origin_row - 1, origin_col),
+            (origin_row + 1, origin_col),
+            (origin_row, origin_col - 1),
+            (origin_row, origin_col + 1),
+        ]
+    if shape_type == "LineHorizontal":
+        width = max(1, safe_int(str(shape.get("width", 1)), 1))
+        return [(origin_row, origin_col + col) for col in range(width)]
+    if shape_type == "LineVertical":
+        height = max(1, safe_int(str(shape.get("height", 1)), 1))
+        return [(origin_row + row, origin_col) for row in range(height)]
+
+    width = max(1, safe_int(str(shape.get("width", 1)), 1))
+    height = max(1, safe_int(str(shape.get("height", 1)), 1))
+    return [
+        (origin_row + row, origin_col + col)
+        for row in range(height)
+        for col in range(width)
+    ]
+
+
+def _prune_shooter_groups_to_existing_cells(grid: Dict[str, Any]) -> None:
+    existing_ids = set()
+    for cell in grid.get("cells", []) or []:
+        entity = cell.get("entity")
+        if not isinstance(entity, dict):
+            continue
+        if entity.get("type") == "Shooter":
+            shooter_id = entity.get("shooter", {}).get("shooterId")
+            if shooter_id:
+                existing_ids.add(shooter_id)
+        elif entity.get("type") == "Tunnel":
+            for shooter in entity.get("shooterQueue", []) or []:
+                shooter_id = shooter.get("shooterId")
+                if shooter_id:
+                    existing_ids.add(shooter_id)
+
+    for group in grid.get("shooterGroups", []) or []:
+        group["shooterIds"] = [
+            shooter_id
+            for shooter_id in group.get("shooterIds", []) or []
+            if shooter_id in existing_ids
+        ]
 
 
 def _normalize_shooter(shooter: Dict[str, Any]) -> Dict[str, Any]:

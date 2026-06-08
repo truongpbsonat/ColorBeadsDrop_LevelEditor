@@ -5,7 +5,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional
 
-from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES
+from .color_utils import SELECTABLE_BALL_COLORS, color_text_hex
+from .constants import COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES
 from .editor_paths import ICON_DIR
 
 
@@ -78,7 +79,7 @@ class EditorUiMixin:
     def _build_toolbar(self, parent):
         frame = ttk.LabelFrame(parent, text="File / Level", padding=(6, 5))
         frame.grid(row=0, column=0, sticky="ew")
-        for col in range(18):
+        for col in range(19):
             frame.columnconfigure(col, weight=0)
         frame.columnconfigure(16, weight=1)
 
@@ -105,8 +106,9 @@ class EditorUiMixin:
         ttk.Button(frame, text="Info", command=self.show_info, width=5).grid(row=0, column=13, padx=(2, 8), pady=1)
         ttk.Label(frame, textvariable=self.level_save_status_var, width=15, anchor="w").grid(row=0, column=14, padx=(0, 8), pady=1, sticky="w")
         ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
-        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=16, padx=(8, 0), pady=1, sticky="e")
-        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Color Tool", command=self.open_color_replace_tool, width=10).grid(row=0, column=16, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=18, padx=(8, 0), pady=1, sticky="e")
 
         ttk.Label(frame, text="Mechanics").grid(row=1, column=0, padx=(0, 3), pady=(5, 1), sticky="w")
         mechanics_entry = ttk.Entry(frame, textvariable=self.mechanics_var)
@@ -219,7 +221,7 @@ class EditorUiMixin:
 
         tools = ttk.LabelFrame(parent, text="Grid Tools", padding=4)
         tools.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-        tools.columnconfigure(12, weight=1)
+        tools.columnconfigure(13, weight=1)
         self.grid_paint_on_click_var = tk.BooleanVar(value=False)
         self.grid_right_clear_var = tk.BooleanVar(value=False)
         self.grid_multi_shooter_select_var = tk.BooleanVar(value=False)
@@ -228,13 +230,16 @@ class EditorUiMixin:
         ttk.Checkbutton(tools, text="Multi", variable=self.grid_multi_shooter_select_var).grid(row=0, column=2, sticky="w", padx=(0, 6))
         ttk.Button(tools, text="Paint", command=self.apply_brush_to_selected, width=6).grid(row=0, column=3, sticky="w", padx=1)
         ttk.Button(tools, text="Clear", command=self.clear_selected_cell, width=6).grid(row=0, column=4, sticky="w", padx=1)
-        ttk.Button(tools, text="Copy", command=self.copy_selected_cell, width=5).grid(row=0, column=5, sticky="w", padx=1)
-        ttk.Button(tools, text="Paste", command=self.paste_selected_cell, width=5).grid(row=0, column=6, sticky="w", padx=(1, 6))
-        ttk.Label(tools, text="R").grid(row=0, column=7, sticky="w", padx=(0, 2))
-        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.rows_var, width=4).grid(row=0, column=8, sticky="w")
-        ttk.Label(tools, text="C").grid(row=0, column=9, sticky="w", padx=(4, 2))
-        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.cols_var, width=4).grid(row=0, column=10, sticky="w")
-        ttk.Button(tools, text="Resize", command=self.resize_grid, width=6).grid(row=0, column=11, sticky="w", padx=(4, 0))
+        ttk.Button(tools, text="Wall", command=self.wall_selected_cell, width=6).grid(row=0, column=5, sticky="w", padx=1)
+        ttk.Button(tools, text="Copy", command=self.copy_selected_cell, width=5).grid(row=0, column=6, sticky="w", padx=1)
+        ttk.Button(tools, text="Paste", command=self.paste_selected_cell, width=5).grid(row=0, column=7, sticky="w", padx=(1, 6))
+        ttk.Label(tools, text="R").grid(row=0, column=8, sticky="w", padx=(0, 2))
+        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.rows_var, width=4).grid(row=0, column=9, sticky="w")
+        ttk.Label(tools, text="C").grid(row=0, column=10, sticky="w", padx=(4, 2))
+        ttk.Spinbox(tools, from_=1, to=20, textvariable=self.cols_var, width=4).grid(row=0, column=11, sticky="w")
+        ttk.Button(tools, text="Resize", command=self.resize_grid, width=6).grid(row=0, column=12, sticky="w", padx=(4, 0))
+        ttk.Button(tools, text="Del Row", command=self.delete_selected_grid_row, width=8).grid(row=1, column=3, columnspan=2, sticky="w", padx=1, pady=(4, 0))
+        ttk.Button(tools, text="Del Col", command=self.delete_selected_grid_column, width=8).grid(row=1, column=5, columnspan=2, sticky="w", padx=1, pady=(4, 0))
 
         grid_area = ttk.Frame(parent)
         grid_area.grid(row=2, column=0, sticky="nsew")
@@ -328,9 +333,9 @@ class EditorUiMixin:
 
         edit_color_buttons = ttk.Frame(shooter_frame)
         edit_color_buttons.grid(row=0, column=0, sticky="ew")
-        for index, color in enumerate(BALL_COLORS[1:]):
+        for index, color in enumerate(SELECTABLE_BALL_COLORS):
             bg = COLOR_HEX.get(color, "#DDDDDD")
-            fg = "#000000" if color in ["White", "Yellow", "Wild", "Cyan", "Lime", "LightPink", "Pink"] else "#FFFFFF"
+            fg = color_text_hex(color)
             button = self._choice_button(
                 edit_color_buttons,
                 "cell_edit_color",

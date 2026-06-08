@@ -5,9 +5,10 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Sequence
 
+from .color_utils import SELECTABLE_BALL_COLORS
 from .constants import BALL_COLORS
 from .level_data import normalize_runtime_level
-from .level_generator_models import DEFAULT_GENERATOR_COLORS, GeneratorConfig
+from .level_generator_models import GeneratorConfig
 
 
 def build_config_from_template(template: Dict[str, Any], base: GeneratorConfig) -> GeneratorConfig:
@@ -49,7 +50,7 @@ def build_config_from_template(template: Dict[str, Any], base: GeneratorConfig) 
     config.shooter_count = (len(shooters) + sum(len((cell.get("entity") or {}).get("shooterQueue", []) or []) for cell in tunnels)) or config.shooter_count
     config.wall_count = len(walls)
     config.color_count = max(1, len([color for color in colors if color and color != "None"]))
-    config.manual_colors = [color for color in DEFAULT_GENERATOR_COLORS if color in colors]
+    config.manual_colors = [color for color in SELECTABLE_BALL_COLORS if color in colors]
     if capacities:
         config.shooter_capacity = max(1, round(sum(capacities) / len(capacities)))
     return config

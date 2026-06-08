@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Any, Dict, List, Optional, Tuple
 
+from .color_utils import color_text_hex
 from .constants import ENTITY_TYPES
 from .level_data import (
     entity_bg,
@@ -531,8 +532,8 @@ class EditorCellsMixin:
         self.refresh_json_preview()
 
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:
-        if entity and entity.get("type") == "Shooter" and entity.get("shooter", {}).get("colorId") in ["Yellow", "Wild", "Cyan", "Pink"]:
-            return "#000000"
+        if entity and entity.get("type") == "Shooter":
+            return color_text_hex(entity.get("shooter", {}).get("colorId", "None"))
         return "#FFFFFF"
 
     def _grid_selection_frame_style(self, is_selected: bool, entity: Optional[Dict[str, Any]]) -> Tuple[str, int, int]:
@@ -584,6 +585,20 @@ class EditorCellsMixin:
             find_cell(self.level, row, col)["entity"] = None
         if self._grid_multi_shooter_select_enabled():
             self.selected_grid_cells.clear()
+        self._update_selected_label()
+        self._refresh_grid_button_states()
+        self.refresh_json_preview()
+
+    def wall_selected_cell(self):
+        targets = self._selected_grid_targets()
+        if not targets:
+            messagebox.showwarning("No Cell", "Select a grid cell first.")
+            return
+        self.record_history()
+        for row, col in targets:
+            find_cell(self.level, row, col)["entity"] = make_wall_entity(row, col)
+        if self._grid_multi_shooter_select_enabled():
+            self.selected_grid_cells = set(targets)
         self._update_selected_label()
         self._refresh_grid_button_states()
         self.refresh_json_preview()

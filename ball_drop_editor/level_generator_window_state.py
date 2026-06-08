@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List
 
-from .constants import BALL_COLORS
+from .color_utils import SELECTABLE_BALL_COLORS
 from .level_generator_window_constants import EMPTY_CELL_STRATEGIES
 
 
@@ -28,7 +28,7 @@ class LevelGeneratorWindowStateMixin:
         self.wall_count_var = tk.IntVar(value=self._count_entities("Wall") or 5)
         self.color_mode_var = tk.StringVar(value="Auto")
         self.color_count_var = tk.IntVar(value=5)
-        self.generator_palette = [color for color in BALL_COLORS if color != "None"]
+        self.generator_palette = list(SELECTABLE_BALL_COLORS)
         self.manual_color_vars: Dict[str, tk.BooleanVar] = {
             color: tk.BooleanVar(value=index < 5)
             for index, color in enumerate(self.generator_palette)

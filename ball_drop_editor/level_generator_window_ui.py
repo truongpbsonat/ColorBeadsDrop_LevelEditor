@@ -3,7 +3,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from .constants import BALL_COLORS, COLOR_HEX, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES
+from .color_utils import color_text_hex
+from .constants import COLOR_HEX, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES
 from .level_generator import DIFFICULTY_TARGETS
 from .level_generator_window_constants import EMPTY_CELL_STRATEGIES
 
@@ -100,7 +101,7 @@ class LevelGeneratorWindowUiMixin:
         palette = ttk.Frame(color_frame)
         palette.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(4, 0))
         for idx, color in enumerate(self.generator_palette):
-            fg = "#000000" if color not in {"Black", "Blue", "Brown", "Gray", "Purple", "Red", "Teal", "Violet"} else "#FFFFFF"
+            fg = color_text_hex(color)
             button = tk.Checkbutton(
                 palette,
                 text="",

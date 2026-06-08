@@ -3,7 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-DEFAULT_GENERATOR_COLORS = ["Blue", "Orange", "Green", "Purple", "Red", "Yellow", "Cyan", "Pink"]
+DEFAULT_GENERATOR_COLORS = [
+    "Blue",
+    "Orange",
+    "Green",
+    "Purple",
+    "Red",
+    "Yellow",
+    "Cyan",
+    "Pink",
+    "LightBeige",
+    "LightRed",
+    "DarkGreen",
+]
 DIFFICULTY_TARGETS = {
     "Easy": 18.0,
     "Normal": 38.0,

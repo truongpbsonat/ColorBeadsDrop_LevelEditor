@@ -106,17 +106,26 @@ class EditorGridMixin:
         if target == source:
             self.on_grid_cell_click(source[0], source[1], event)
             return
-        source_entity = find_cell(self.level, *source).get("entity")
-        target_entity = find_cell(self.level, *target).get("entity")
-        if not self._is_shooter_entity(source_entity) or not self._is_shooter_entity(target_entity):
+        if not self._swap_grid_cells(source, target):
             return
-        self.record_history()
-        find_cell(self.level, *source)["entity"], find_cell(self.level, *target)["entity"] = target_entity, source_entity
         self.selected_cell = target
         self.selected_grid_cells = {target} if self._grid_multi_shooter_select_enabled() else set()
         self._update_selected_label()
         self._refresh_grid_button_states()
         self.refresh_json_preview()
+
+    def _swap_grid_cells(self, source: Tuple[int, int], target: Tuple[int, int]) -> bool:
+        if source == target:
+            return False
+        source_cell = find_cell(self.level, *source)
+        target_cell = find_cell(self.level, *target)
+        source_entity = source_cell.get("entity")
+        target_entity = target_cell.get("entity")
+        if source_entity is None and target_entity is None:
+            return True
+        self.record_history()
+        source_cell["entity"], target_cell["entity"] = target_entity, source_entity
+        return True
 
     def on_grid_right_click(self, row: int, col: int):
         right_clear_option = getattr(self, "grid_right_clear_var", None)
