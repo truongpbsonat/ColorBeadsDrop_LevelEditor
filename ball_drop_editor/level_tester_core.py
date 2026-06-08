@@ -27,10 +27,11 @@ DEFAULT_MAX_STEPS = 3000
 class ShooterState:
     color: str
     capacity: int
+    shooter_id: str = ""
     ice_hp: int = 0
 
-    def key(self) -> Tuple[str, int, int]:
-        return self.color, self.capacity, self.ice_hp
+    def key(self) -> Tuple[str, int, str, int]:
+        return self.color, self.capacity, self.shooter_id, self.ice_hp
 
 
 @dataclass
@@ -79,12 +80,25 @@ class ClickAction:
 
 
 @dataclass
+class LockBarState:
+    cells: Tuple[Tuple[int, int], ...]
+    trigger: Tuple[int, int]
+    active: bool = True
+
+    def key(self) -> Tuple[Any, ...]:
+        return self.cells, self.trigger, self.active
+
+
+@dataclass
 class GameState:
     rows: int
     cols: int
     cells: List[CellState]
     gates: List[List[TrayState]]
+    base_obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
+    lock_bars: List[LockBarState] = field(default_factory=list)
+    connected_groups: Tuple[Tuple[str, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
     hopper: List[str] = field(default_factory=list)
     steps: int = 0
@@ -104,6 +118,7 @@ class GameState:
             ),
             tuple(self.conveyor),
             tuple(self.hopper),
+            tuple(lock_bar.key() for lock_bar in self.lock_bars),
             self.lost,
         )
 
@@ -164,31 +179,41 @@ class BallDropSimulator:
             gates.append(gate)
 
         obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
+        lock_bars: List[LockBarState] = []
         for obstacle in grid.get("obstacles", []) or []:
-            if obstacle.get("type") != "IceBlock":
-                continue
-            obstacle_cells = self._expand_obstacle_cells(obstacle)
-            blocks_path = bool(obstacle.get("blocksPath", True))
-            locks_shooter = bool(obstacle.get("locksShooter", True))
-            hp = max(1, int(obstacle.get("hp", 1) or 1))
-            for row, col in obstacle_cells:
-                if not (0 <= row < rows and 0 <= col < cols):
-                    continue
-                if blocks_path:
+            obstacle_type = obstacle.get("type")
+            if obstacle_type == "IceBlock":
+                obstacle_cells = self._expand_obstacle_cells(obstacle)
+                hp = max(1, int(obstacle.get("hp", 1) or 1))
+                for row, col in obstacle_cells:
+                    if not (0 <= row < rows and 0 <= col < cols):
+                        continue
                     obstacle_blocked[row][col] = True
-                if locks_shooter:
                     cell = cells[row * cols + col]
                     if cell.type == "Shooter" and cell.shooter:
                         cell.shooter.ice_hp = max(cell.shooter.ice_hp, hp)
+            elif obstacle_type == "LockBar":
+                lock_cells = self._expand_lockbar_cells(obstacle)
+                if lock_cells:
+                    head = lock_cells[0]
+                    trigger = self._offset_unbounded(head[0], head[1], self._opposite_direction(obstacle.get("direction", "Right")))
+                    lock_bars.append(LockBarState(cells=tuple(lock_cells), trigger=trigger))
+
+        connected_groups = self._parse_connected_groups(grid)
+        base_obstacle_blocked = tuple(tuple(row) for row in obstacle_blocked)
 
         state = GameState(
             rows=rows,
             cols=cols,
             cells=cells,
             gates=gates,
-            obstacle_blocked=tuple(tuple(row) for row in obstacle_blocked),
+            base_obstacle_blocked=base_obstacle_blocked,
+            obstacle_blocked=base_obstacle_blocked,
+            lock_bars=lock_bars,
+            connected_groups=connected_groups,
         )
         self.settle_tunnels(state)
+        self.refresh_lock_bars(state)
         return state
 
     def _parse_cell(self, entity: Optional[Dict[str, Any]]) -> CellState:
@@ -209,12 +234,16 @@ class BallDropSimulator:
 
     def _parse_shooter(self, shooter: Dict[str, Any]) -> ShooterState:
         ice_hp = 0
+        multiplier = 1
         for modifier in shooter.get("modifiers", []) or []:
             if modifier.get("type") == "Ice":
                 ice_hp = max(ice_hp, int(modifier.get("hp", 1)))
+            elif modifier.get("type") == "Special":
+                multiplier = 2
         return ShooterState(
             color=str(shooter.get("colorId", "None")),
-            capacity=max(0, int(shooter.get("capacity", 0))),
+            capacity=max(0, int(shooter.get("capacity", 0))) * multiplier,
+            shooter_id=str(shooter.get("shooterId", "")),
             ice_hp=ice_hp,
         )
 
@@ -224,6 +253,16 @@ class BallDropSimulator:
             if modifier.get("type") == "Ice":
                 ice_hp = max(ice_hp, int(modifier.get("hp", 3)))
         return ice_hp
+
+    def _parse_connected_groups(self, grid: Dict[str, Any]) -> Tuple[Tuple[str, ...], ...]:
+        groups = []
+        for group in grid.get("shooterGroups", []) or []:
+            if group.get("type") != "Connected":
+                continue
+            members = tuple(str(shooter_id) for shooter_id in group.get("shooterIds", []) or [] if str(shooter_id))
+            if len(members) >= 2:
+                groups.append(members)
+        return tuple(groups)
 
     def is_win(self, state: GameState) -> bool:
         return (
@@ -247,6 +286,7 @@ class BallDropSimulator:
 
     def active_shooters(self, state: GameState) -> List[Tuple[int, int, ShooterState]]:
         active = []
+        active_ids = set()
         for index, cell in enumerate(state.cells):
             if cell.type != "Shooter" or not cell.shooter:
                 continue
@@ -255,6 +295,24 @@ class BallDropSimulator:
             row, col = divmod(index, state.cols)
             if self.has_path_to_exit(state, row, col):
                 active.append((row, col, cell.shooter))
+                if cell.shooter.shooter_id:
+                    active_ids.add(cell.shooter.shooter_id)
+
+        for group in state.connected_groups:
+            if not any(shooter_id in active_ids for shooter_id in group):
+                continue
+            group_ids = set(group)
+            for index, cell in enumerate(state.cells):
+                if cell.type != "Shooter" or not cell.shooter:
+                    continue
+                if cell.shooter.shooter_id not in group_ids:
+                    continue
+                if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
+                    continue
+                row, col = divmod(index, state.cols)
+                action = (row, col, cell.shooter)
+                if action not in active:
+                    active.append(action)
         return active
 
     def has_path_to_exit(self, state: GameState, start_row: int, start_col: int) -> bool:
@@ -297,11 +355,23 @@ class BallDropSimulator:
         if shooter.capacity <= 0 or shooter.ice_hp > 0:
             return False
         if not self.has_path_to_exit(state, row, col):
-            return False
-        state.hopper.extend([shooter.color] * shooter.capacity)
+            if not self._can_group_member_click(state, shooter):
+                return False
         state.clicks.append(ClickAction(row, col, shooter.color))
-        state.cells[index] = CellState("Empty")
+        group_members = self._connected_group_member_indexes(state, shooter)
+        if group_members:
+            ordered_members = [index] + [member_index for member_index in group_members if member_index != index]
+            for member_index in ordered_members:
+                member = state.cells[member_index]
+                if member.type == "Shooter" and member.shooter:
+                    state.hopper.extend([member.shooter.color] * member.shooter.capacity)
+                    state.cells[member_index] = CellState("Empty")
+        else:
+            state.hopper.extend([shooter.color] * shooter.capacity)
+            state.cells[index] = CellState("Empty")
+        self.refresh_lock_bars(state)
         self.settle_tunnels(state)
+        self.refresh_lock_bars(state)
         return True
 
     def settle_tunnels(self, state: GameState) -> None:
@@ -323,6 +393,67 @@ class BallDropSimulator:
                     continue
                 state.cells[out_index] = CellState("Shooter", shooter=cell.queue.pop(0))
                 changed = True
+
+    def refresh_lock_bars(self, state: GameState) -> None:
+        if not state.lock_bars:
+            return
+        for lock_bar in state.lock_bars:
+            if not lock_bar.active:
+                continue
+            trigger_row, trigger_col = lock_bar.trigger
+            if not (0 <= trigger_row < state.rows and 0 <= trigger_col < state.cols):
+                lock_bar.active = False
+                continue
+            trigger_cell = state.cells[trigger_row * state.cols + trigger_col]
+            if trigger_cell.type == "Empty":
+                lock_bar.active = False
+
+        blocked = [list(row) for row in (state.base_obstacle_blocked or state.obstacle_blocked)]
+        for lock_bar in state.lock_bars:
+            if not lock_bar.active:
+                continue
+            for row, col in lock_bar.cells:
+                if 0 <= row < state.rows and 0 <= col < state.cols:
+                    blocked[row][col] = True
+        state.obstacle_blocked = tuple(tuple(row) for row in blocked)
+
+    def _can_group_member_click(self, state: GameState, shooter: ShooterState) -> bool:
+        if not shooter.shooter_id:
+            return False
+        group = self._connected_group_for_shooter(state, shooter.shooter_id)
+        if not group:
+            return False
+        group_ids = set(group)
+        for index, cell in enumerate(state.cells):
+            if cell.type != "Shooter" or not cell.shooter:
+                continue
+            if cell.shooter.shooter_id not in group_ids:
+                continue
+            if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
+                continue
+            row, col = divmod(index, state.cols)
+            if self.has_path_to_exit(state, row, col):
+                return True
+        return False
+
+    def _connected_group_member_indexes(self, state: GameState, shooter: ShooterState) -> List[int]:
+        if not shooter.shooter_id:
+            return []
+        group = self._connected_group_for_shooter(state, shooter.shooter_id)
+        if not group:
+            return []
+        group_ids = set(group)
+        return [
+            index
+            for index, cell in enumerate(state.cells)
+            if cell.type == "Shooter" and cell.shooter and cell.shooter.shooter_id in group_ids
+        ]
+
+    def _connected_group_for_shooter(self, state: GameState, shooter_id: str) -> Optional[Tuple[str, ...]]:
+        for group in state.connected_groups:
+            if shooter_id in group:
+                return group
+        return None
 
     def step(self, state: GameState) -> None:
         if state.lost:
@@ -455,6 +586,7 @@ class BallDropSimulator:
         origin_row = int(origin.get("row", 0) or 0)
         origin_col = int(origin.get("column", 0) or 0)
         shape_type = shape.get("type", "Rect")
+        default_size = 3 if obstacle.get("type") == "IceBlock" else 1
         if shape_type == "CustomCells":
             return [
                 (int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0))
@@ -469,18 +601,46 @@ class BallDropSimulator:
                 (origin_row, origin_col + 1),
             ]
         if shape_type == "LineHorizontal":
-            width = max(1, int(shape.get("width", 1) or 1))
+            width = max(1, int(shape.get("width", default_size) or default_size))
             return [(origin_row, origin_col + col) for col in range(width)]
         if shape_type == "LineVertical":
-            height = max(1, int(shape.get("height", 1) or 1))
+            height = max(1, int(shape.get("height", default_size) or default_size))
             return [(origin_row + row, origin_col) for row in range(height)]
-        width = max(1, int(shape.get("width", 1) or 1))
-        height = max(1, int(shape.get("height", 1) or 1))
+        width = max(1, int(shape.get("width", default_size) or default_size))
+        height = max(1, int(shape.get("height", default_size) or default_size))
         return [
             (origin_row + row, origin_col + col)
             for row in range(height)
             for col in range(width)
         ]
+
+    def _expand_lockbar_cells(self, obstacle: Dict[str, Any]) -> List[Tuple[int, int]]:
+        shape = obstacle.get("shape", {}) or {}
+        origin = shape.get("origin", {}) or {}
+        row = int(origin.get("row", 0) or 0)
+        col = int(origin.get("column", 0) or 0)
+        cells = [(row, col)]
+        for _ in range(1, max(1, int(obstacle.get("length", 3) or 3))):
+            row, col = self._offset_unbounded(row, col, obstacle.get("direction", "Right"))
+            cells.append((row, col))
+        return cells
+
+    def _offset_unbounded(self, row: int, col: int, direction: str) -> Tuple[int, int]:
+        if direction == "Up":
+            return row - 1, col
+        if direction == "Down":
+            return row + 1, col
+        if direction == "Left":
+            return row, col - 1
+        return row, col + 1
+
+    def _opposite_direction(self, direction: str) -> str:
+        return {
+            "Up": "Down",
+            "Down": "Up",
+            "Left": "Right",
+            "Right": "Left",
+        }.get(direction, "Left")
 
 
 class DeepSearchSolver:

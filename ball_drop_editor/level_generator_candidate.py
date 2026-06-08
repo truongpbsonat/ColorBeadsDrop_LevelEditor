@@ -104,6 +104,9 @@ class DifficultyCurveCandidateMixin:
         self._place_walls(level, wall_positions)
         solution_colors.extend(self._fill_empty_cells(level))
         self._place_obstacles(level, shooter_positions)
+        self._place_special_shooters(level)
+        self._place_connected_groups(level)
+        solution_colors = self._solution_colors_from_grid(level)
         self._build_gates(level, solution_colors)
         self._place_ice_trays(level)
         normalize_runtime_level(level)
@@ -261,36 +264,155 @@ class DifficultyCurveCandidateMixin:
         level: Dict[str, Any],
         shooter_positions: Sequence[Tuple[int, int]],
     ) -> None:
-        if "IceBlock" not in self.config.allowed_devices:
+        allow_iceblock = "IceBlock" in self.config.allowed_devices
+        allow_lockbar = "LockBar" in self.config.allowed_devices
+        if not allow_iceblock and not allow_lockbar:
             return
         phases = self.config.normalized_phases()
-        if not GRID_OBSTACLE_TYPES:
-            return
         total_intensity = sum(max(0, int(phase.obstacle_pressure)) for phase in phases)
         if total_intensity <= 0:
             return
-        max_obstacles = min(len(shooter_positions), max(1, total_intensity))
-        late_positions = list(shooter_positions[len(shooter_positions) // 3 :])
-        self.rng.shuffle(late_positions)
-        obstacles = []
-        for index, (row, col) in enumerate(late_positions[:max_obstacles], start=1):
-            obstacles.append(
-                {
-                    "obstacleId": short_id("ice"),
-                    "type": "IceBlock",
-                    "hp": 1 + (index % 3),
-                    "blocksPath": False,
-                    "locksShooter": True,
-                    "shape": {
-                        "type": "CustomCells",
-                        "origin": {"row": row, "column": col},
-                        "width": 1,
-                        "height": 1,
-                        "cells": [{"row": row, "column": col}],
-                    },
-                }
-            )
-        level.setdefault("grid", {})["obstacles"] = obstacles
+        obstacles = level.setdefault("grid", {}).setdefault("obstacles", [])
+        if allow_iceblock:
+            max_obstacles = min(len(shooter_positions), max(1, total_intensity))
+            late_positions = list(shooter_positions[len(shooter_positions) // 3 :])
+            self.rng.shuffle(late_positions)
+            for index, (row, col) in enumerate(late_positions[:max_obstacles], start=1):
+                obstacles.append(
+                    {
+                        "obstacleId": short_id("ice"),
+                        "type": "IceBlock",
+                        "hp": 1 + (index % 3),
+                        "shape": {
+                            "type": "CustomCells",
+                            "origin": {"row": row, "column": col},
+                            "width": 1,
+                            "height": 1,
+                            "cells": [{"row": row, "column": col}],
+                        },
+                    }
+                )
+        if allow_lockbar:
+            self._place_lock_bars(level, total_intensity)
+
+    def _place_special_shooters(self, level: Dict[str, Any]) -> None:
+        if "Special" not in self.config.allowed_devices:
+            return
+        phases = self.config.normalized_phases()
+        total_intensity = sum(max(0, int(phase.obstacle_pressure + phase.decision_trap)) for phase in phases)
+        if total_intensity <= 0:
+            return
+        shooters = self._grid_shooter_entries(level)
+        if not shooters:
+            return
+        self.rng.shuffle(shooters)
+        count = min(len(shooters), max(1, total_intensity // 2))
+        placed = 0
+        for _row, _col, shooter in shooters[:count]:
+            modifiers = [
+                copy.deepcopy(modifier)
+                for modifier in shooter.get("modifiers", []) or []
+                if modifier.get("type") != "Special"
+            ]
+            modifiers.append({"type": "Special"})
+            shooter["modifiers"] = modifiers
+            placed += 1
+        if placed:
+            self._note(f"Placed {placed} Special shooter modifier(s).")
+
+    def _place_connected_groups(self, level: Dict[str, Any]) -> None:
+        if "ConnectedGroup" not in self.config.allowed_devices:
+            return
+        shooters = self._grid_shooter_entries(level)
+        by_pos = {(row, col): shooter for row, col, shooter in shooters}
+        candidates: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+        for row, col, _shooter in shooters:
+            for neighbor in ((row, col + 1), (row + 1, col)):
+                if neighbor in by_pos:
+                    candidates.append(((row, col), neighbor))
+        self.rng.shuffle(candidates)
+        used_ids: set[str] = set()
+        groups = level.setdefault("grid", {}).setdefault("shooterGroups", [])
+        placed = 0
+        max_groups = max(1, sum(max(0, int(phase.decision_trap)) for phase in self.config.normalized_phases()) // 2)
+        for first, second in candidates:
+            if placed >= max_groups:
+                break
+            first_shooter = by_pos[first]
+            second_shooter = by_pos[second]
+            first_id = first_shooter.get("shooterId")
+            second_id = second_shooter.get("shooterId")
+            if not first_id or not second_id or first_id in used_ids or second_id in used_ids:
+                continue
+            groups.append({
+                "groupId": short_id("group"),
+                "type": "Connected",
+                "shooterIds": [first_id, second_id],
+            })
+            used_ids.update([first_id, second_id])
+            placed += 1
+        if placed:
+            self._note(f"Created {placed} Connected shooter group(s).")
+        else:
+            self._note("Connected Group requested, but no adjacent shooter pairs were available.")
+
+    def _place_lock_bars(self, level: Dict[str, Any], total_intensity: int) -> None:
+        grid = level.setdefault("grid", {})
+        rows = int(grid.get("rows", 0) or 0)
+        cols = int(grid.get("columns", 0) or 0)
+        if rows <= 0 or cols <= 0:
+            return
+        candidates = []
+        for cell in grid.get("cells", []) or []:
+            entity = cell.get("entity") or {}
+            if entity.get("type") != "Wall":
+                continue
+            wall = (int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0))
+            for direction in ("Up", "Down", "Left", "Right"):
+                head = self._offset(wall, self._opposite_direction(direction))
+                body = self._offset(wall, direction)
+                trigger = self._offset(head, self._opposite_direction(direction))
+                if not (self._inside(head, rows, cols) and self._inside(body, rows, cols) and self._inside(trigger, rows, cols)):
+                    continue
+                trigger_entity = self._cell_entity(level, trigger)
+                if trigger_entity is None:
+                    continue
+                if self._cell_entity(level, head) is None and self._cell_entity(level, body) is None:
+                    candidates.append((head, direction, [head, wall, body], trigger))
+                elif (self._cell_entity(level, head) or {}).get("type") == "Shooter" and (self._cell_entity(level, body) or {}).get("type") == "Shooter":
+                    candidates.append((head, direction, [head, wall, body], trigger))
+        self.rng.shuffle(candidates)
+        max_lockbars = min(len(candidates), max(1, total_intensity // 2))
+        placed = 0
+        occupied: set[Tuple[int, int]] = set()
+        for head, direction, cells, trigger in candidates:
+            if placed >= max_lockbars:
+                break
+            if any(cell in occupied for cell in cells) or trigger in occupied:
+                continue
+            for index, position in enumerate(cells):
+                if index != 1:
+                    find_cell(level, position[0], position[1])["entity"] = None
+            grid.setdefault("obstacles", []).append({
+                "obstacleId": short_id("lock"),
+                "type": "LockBar",
+                "direction": direction,
+                "length": 3,
+                "shape": {
+                    "type": "LineVertical" if direction in {"Up", "Down"} else "LineHorizontal",
+                    "origin": {"row": head[0], "column": head[1]},
+                    "width": 1 if direction in {"Up", "Down"} else 3,
+                    "height": 3 if direction in {"Up", "Down"} else 1,
+                    "cells": [],
+                },
+            })
+            occupied.update(cells)
+            occupied.add(trigger)
+            placed += 1
+        if placed:
+            self._note(f"Placed {placed} LockBar obstacle(s).")
+        else:
+            self._note("LockBar requested, but no safe wall/head/trigger layout was found.")
 
     def _place_ice_trays(self, level: Dict[str, Any]) -> None:
         if "IceTray" not in self.config.allowed_devices:
@@ -350,6 +472,59 @@ class DifficultyCurveCandidateMixin:
             self._note(f"Placed {placed} Ice Tray modifier(s) with hp=3.")
         else:
             self._note("Ice Tray requested, but placement was skipped to avoid freezing an entire tray row.")
+
+    def _solution_colors_from_grid(self, level: Dict[str, Any]) -> List[str]:
+        colors: List[str] = []
+        for cell in level.get("grid", {}).get("cells", []) or []:
+            entity = cell.get("entity") or {}
+            if entity.get("type") == "Shooter":
+                shooter = entity.get("shooter", {}) or {}
+                repeat = 2 if self._shooter_has_special(shooter) else 1
+                colors.extend([shooter.get("colorId", "Blue")] * repeat)
+            elif entity.get("type") == "Tunnel":
+                for shooter in entity.get("shooterQueue", []) or []:
+                    repeat = 2 if self._shooter_has_special(shooter) else 1
+                    colors.extend([shooter.get("colorId", "Blue")] * repeat)
+        return [color for color in colors if color in BALL_COLORS and color != "None"]
+
+    def _grid_shooter_entries(self, level: Dict[str, Any]) -> List[Tuple[int, int, Dict[str, Any]]]:
+        entries: List[Tuple[int, int, Dict[str, Any]]] = []
+        for cell in level.get("grid", {}).get("cells", []) or []:
+            entity = cell.get("entity") or {}
+            if entity.get("type") != "Shooter":
+                continue
+            shooter = entity.get("shooter")
+            if not shooter:
+                continue
+            entries.append((int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0), shooter))
+        return entries
+
+    def _shooter_has_special(self, shooter: Dict[str, Any]) -> bool:
+        return any(modifier.get("type") == "Special" for modifier in shooter.get("modifiers", []) or [])
+
+    def _cell_entity(self, level: Dict[str, Any], position: Tuple[int, int]) -> Optional[Dict[str, Any]]:
+        return find_cell(level, position[0], position[1]).get("entity")
+
+    def _offset(self, position: Tuple[int, int], direction: str) -> Tuple[int, int]:
+        row, col = position
+        if direction == "Up":
+            return row - 1, col
+        if direction == "Down":
+            return row + 1, col
+        if direction == "Left":
+            return row, col - 1
+        return row, col + 1
+
+    def _opposite_direction(self, direction: str) -> str:
+        return {
+            "Up": "Down",
+            "Down": "Up",
+            "Left": "Right",
+            "Right": "Left",
+        }.get(direction, "Left")
+
+    def _inside(self, position: Tuple[int, int], rows: int, cols: int) -> bool:
+        return 0 <= position[0] < rows and 0 <= position[1] < cols
 
     def _build_solution_colors(self, count: int) -> List[str]:
         count = max(0, int(count))

@@ -15,6 +15,7 @@ from .constants import (
     TRAY_MODIFIER_TYPES,
 )
 from .level_data import detect_mechanics
+from .utils import safe_int
 
 LEGACY_GRID_CELL_FIELDS = {"type", "shooter", "wall", "tunnel", "portal", "generator", "blocker"}
 
@@ -73,7 +74,7 @@ class LevelValidator:
                     errors.append(f"Shooter {sid} có colorId không hợp lệ: {color}.")
                 if cap <= 0:
                     errors.append(f"Shooter {sid} capacity phải > 0.")
-                color_capacity[color] += max(0, cap)
+                color_capacity[color] += self._effective_capacity(shooter)
                 self._validate_modifiers(shooter, sid, errors)
 
             if etype == "Wall":
@@ -106,11 +107,11 @@ class LevelValidator:
                         errors.append(f"Tunnel shooter {sid} có colorId không hợp lệ: {color}.")
                     if cap <= 0:
                         errors.append(f"Tunnel shooter {sid} capacity phải > 0.")
-                    color_capacity[color] += max(0, cap)
+                    color_capacity[color] += self._effective_capacity(shooter)
                     self._validate_modifiers(shooter, sid, errors)
 
         self._validate_obstacles(grid, blocked, errors)
-        self._validate_shooter_groups(grid, shooter_ids, errors)
+        self._validate_shooter_groups(grid, shooter_ids, errors, warnings)
 
         if level.get("level", 0) > 5 and wall_count == 0:
             warnings.append("No wall in a higher level.")
@@ -203,6 +204,12 @@ class LevelValidator:
             if mtype == "Ice" and modifier.get("hp", 1) <= 0:
                 errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
 
+    def _effective_capacity(self, shooter: Dict[str, Any]) -> int:
+        capacity = max(0, safe_int(str(shooter.get("capacity", 0)), 0))
+        if any(modifier.get("type") == "Special" for modifier in shooter.get("modifiers", []) or []):
+            return capacity * 2
+        return capacity
+
     def _validate_tray_modifiers(self, tray: Dict[str, Any], errors: List[str]) -> None:
         tray_id = tray.get("trayId")
         for modifier in tray.get("modifiers", []):
@@ -212,7 +219,7 @@ class LevelValidator:
             if mtype == "Ice" and modifier.get("hp", 3) <= 0:
                 errors.append(f"Ice tray {tray_id} hp phải > 0.")
 
-    def _validate_obstacles(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
+    def _validate_obstacles_legacy(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
         rows = grid.get("rows", 0)
         cols = grid.get("columns", 0)
         for obstacle in grid.get("obstacles", []):
@@ -225,14 +232,13 @@ class LevelValidator:
             if shape_type not in GRID_OBSTACLE_SHAPE_TYPES:
                 errors.append(f"Obstacle {obstacle.get('obstacleId')} has unsupported shape type: {shape_type}.")
                 continue
-            for r, c in self._expand_shape(obstacle.get("shape", {})):
+            for r, c in self._expand_shape(obstacle.get("shape", {}), 3, 3):
                 if not (0 <= r < rows and 0 <= c < cols):
                     errors.append(f"Obstacle {obstacle.get('obstacleId')} shape cell ({r},{c}) ngoài grid.")
                     continue
-                if obstacle.get("blocksPath", True):
-                    blocked[r][c] = True
+                blocked[r][c] = True
 
-    def _validate_shooter_groups(self, grid: Dict[str, Any], shooter_ids: set, errors: List[str]) -> None:
+    def _validate_shooter_groups_legacy(self, grid: Dict[str, Any], shooter_ids: set, errors: List[str]) -> None:
         for group in grid.get("shooterGroups", []):
             group_id = group.get("groupId")
             if group.get("type") not in SHOOTER_GROUP_TYPES:
@@ -240,6 +246,99 @@ class LevelValidator:
             for shooter_id in group.get("shooterIds", []):
                 if shooter_id not in shooter_ids:
                     errors.append(f"ShooterGroup {group.get('groupId')} tham chiếu shooterId không tồn tại: {shooter_id}.")
+
+    def _validate_obstacles(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
+        rows = grid.get("rows", 0)
+        cols = grid.get("columns", 0)
+        entities_by_pos = {
+            (cell.get("row"), cell.get("column")): cell.get("entity")
+            for cell in grid.get("cells", [])
+            if cell.get("entity") is not None
+        }
+        for obstacle in grid.get("obstacles", []):
+            obstacle_type = obstacle.get("type")
+            if obstacle_type not in GRID_OBSTACLE_TYPES:
+                errors.append(f"GridObstacle type is unsupported: {obstacle_type}.")
+                continue
+
+            if obstacle_type == "IceBlock":
+                if obstacle.get("hp", 1) <= 0:
+                    errors.append(f"IceBlock {obstacle.get('obstacleId')} hp must be > 0.")
+                shape_type = obstacle.get("shape", {}).get("type", "Rect")
+                if shape_type not in GRID_OBSTACLE_SHAPE_TYPES:
+                    errors.append(f"Obstacle {obstacle.get('obstacleId')} has unsupported shape type: {shape_type}.")
+                    continue
+                affected_cells = self._expand_shape(obstacle.get("shape", {}), 3, 3)
+            elif obstacle_type == "LockBar":
+                direction = obstacle.get("direction")
+                if direction not in DIRECTIONS:
+                    errors.append(f"LockBar {obstacle.get('obstacleId')} direction is invalid: {direction}.")
+                    continue
+                if obstacle.get("length", 0) <= 0:
+                    errors.append(f"LockBar {obstacle.get('obstacleId')} length must be > 0.")
+                affected_cells = self._expand_lockbar_shape(obstacle)
+                self._validate_lockbar_cells(obstacle, affected_cells, entities_by_pos, rows, cols, errors)
+            else:
+                continue
+
+            for r, c in affected_cells:
+                if not (0 <= r < rows and 0 <= c < cols):
+                    errors.append(f"Obstacle {obstacle.get('obstacleId')} shape cell ({r},{c}) outside grid.")
+                    continue
+                blocked[r][c] = True
+
+    def _validate_lockbar_cells(
+        self,
+        obstacle: Dict[str, Any],
+        affected_cells: List[Tuple[int, int]],
+        entities_by_pos: Dict[Tuple[int, int], Dict[str, Any]],
+        rows: int,
+        cols: int,
+        errors: List[str],
+    ) -> None:
+        obstacle_id = obstacle.get("obstacleId")
+        for index, position in enumerate(affected_cells):
+            if not (0 <= position[0] < rows and 0 <= position[1] < cols):
+                continue
+            entity = entities_by_pos.get(position)
+            if index == 1:
+                if not entity or entity.get("type") != "Wall":
+                    errors.append(f"LockBar {obstacle_id} cell {position} (slot 2) must have a Wall entity.")
+            elif entity is not None:
+                errors.append(f"LockBar {obstacle_id} cell {position} (slot {index + 1}) cannot have any entity.")
+
+        if not affected_cells:
+            return
+        trigger = self._offset(
+            affected_cells[0][0],
+            affected_cells[0][1],
+            self._opposite_direction(obstacle.get("direction", "Right")),
+        )
+        if not (0 <= trigger[0] < rows and 0 <= trigger[1] < cols):
+            errors.append(f"LockBar {obstacle_id} trigger cell {trigger} is outside grid.")
+        elif trigger not in entities_by_pos:
+            errors.append(f"LockBar {obstacle_id} trigger cell {trigger} must have a blocking entity.")
+
+    def _validate_shooter_groups(self, grid: Dict[str, Any], shooter_ids: set, errors: List[str], warnings: List[str]) -> None:
+        seen_group_ids = set()
+        for group in grid.get("shooterGroups", []):
+            group_id = group.get("groupId")
+            if not str(group_id or "").strip():
+                errors.append("ShooterGroup is missing groupId.")
+            elif group_id in seen_group_ids:
+                errors.append(f"Duplicate ShooterGroup groupId: {group_id}.")
+            else:
+                seen_group_ids.add(group_id)
+            group_type = group.get("type")
+            if group_type not in SHOOTER_GROUP_TYPES:
+                errors.append(f"ShooterGroup {group_id} has invalid type: {group_type}.")
+            elif group_type in {"Chain", "Pair"}:
+                warnings.append(f"ShooterGroup {group_id} type {group_type} is data-only; Connected has the current runtime behavior.")
+            for shooter_id in group.get("shooterIds", []):
+                if shooter_id not in shooter_ids:
+                    errors.append(f"ShooterGroup {group_id} references missing shooterId: {shooter_id}.")
+            if group_type == "Connected" and len(group.get("shooterIds", []) or []) < 2:
+                warnings.append(f"ShooterGroup {group_id} Connected should have at least 2 shooters.")
 
     def _validate_mechanics(self, level: Dict[str, Any], errors: List[str], warnings: List[str]) -> None:
         mechanics = level.get("mechanics", [])
@@ -262,7 +361,7 @@ class LevelValidator:
         for mid in sorted(set(detect_mechanics(level)) - authored):
             warnings.append(f"Mechanic '{mid}' xuất hiện trong level nhưng chưa khai báo trong 'mechanics' (dùng Auto-detect).")
 
-    def _expand_shape(self, shape: Dict[str, Any]) -> List[Tuple[int, int]]:
+    def _expand_shape(self, shape: Dict[str, Any], default_width: int = 1, default_height: int = 1) -> List[Tuple[int, int]]:
         origin = shape.get("origin", {})
         origin_row = origin.get("row", 0)
         origin_col = origin.get("column", 0)
@@ -277,12 +376,25 @@ class LevelValidator:
                 (origin_row, origin_col + 1),
             ]
         if shape.get("type") == "LineHorizontal":
-            return [(origin_row, origin_col + col) for col in range(max(1, shape.get("width", 1)))]
+            return [(origin_row, origin_col + col) for col in range(max(1, shape.get("width", default_width)))]
         if shape.get("type") == "LineVertical":
-            return [(origin_row + row, origin_col) for row in range(max(1, shape.get("height", 1)))]
+            return [(origin_row + row, origin_col) for row in range(max(1, shape.get("height", default_height)))]
         width = max(1, shape.get("width", 1))
         height = max(1, shape.get("height", 1))
+        height = max(1, safe_int(str(shape.get("height", default_height)), default_height))
+        width = max(1, safe_int(str(shape.get("width", default_width)), default_width))
         return [(origin_row + row, origin_col + col) for row in range(height) for col in range(width)]
+
+    def _expand_lockbar_shape(self, obstacle: Dict[str, Any]) -> List[Tuple[int, int]]:
+        shape = obstacle.get("shape", {}) or {}
+        origin = shape.get("origin", {}) or {}
+        row = origin.get("row", 0)
+        col = origin.get("column", 0)
+        cells = [(row, col)]
+        for _ in range(1, max(1, obstacle.get("length", 3))):
+            row, col = self._offset(row, col, obstacle.get("direction", "Right"))
+            cells.append((row, col))
+        return cells
 
     def _has_path_to_top(self, grid: Dict[str, Any], start_row: int, start_col: int, blocked: List[List[bool]]) -> bool:
         rows = grid.get("rows", 0)
@@ -318,3 +430,11 @@ class LevelValidator:
         if direction == "Left":
             return row, col - 1
         return row, col + 1
+
+    def _opposite_direction(self, direction: str) -> str:
+        return {
+            "Up": "Down",
+            "Down": "Up",
+            "Left": "Right",
+            "Right": "Left",
+        }.get(direction, "Left")

@@ -28,7 +28,7 @@ class EditorUiMixin:
         left.columnconfigure(0, weight=1)
 
         left_inner = self._build_scrollable_sidebar(left)
-        self._build_cell_editor(left_inner)
+        self._build_inspector_tabs(left_inner)
 
         workspace = ttk.Frame(self, padding=(0, 8, 8, 8))
         workspace.grid(row=1, column=1, sticky="nsew")
@@ -56,10 +56,10 @@ class EditorUiMixin:
         self._build_json_preview(json_holder)
 
     def _build_scrollable_sidebar(self, parent):
-        self.left_canvas = tk.Canvas(parent, width=250, highlightthickness=0)
+        self.left_canvas = tk.Canvas(parent, width=340, highlightthickness=0)
         left_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.left_canvas.yview)
         self.left_canvas.configure(yscrollcommand=left_scrollbar.set)
-        self.left_canvas.grid(row=0, column=0, sticky="ns")
+        self.left_canvas.grid(row=0, column=0, sticky="nsew")
         left_scrollbar.grid(row=0, column=1, sticky="ns")
 
         content = ttk.Frame(self.left_canvas)
@@ -69,6 +69,23 @@ class EditorUiMixin:
         self.left_canvas.bind("<Enter>", lambda e: self.left_canvas.bind_all("<MouseWheel>", self._on_sidebar_mousewheel))
         self.left_canvas.bind("<Leave>", lambda e: self.left_canvas.unbind_all("<MouseWheel>"))
         return content
+
+    def _build_inspector_tabs(self, parent):
+        self.inspector_notebook = ttk.Notebook(parent)
+        self.inspector_notebook.pack(fill="both", expand=True)
+        tabs = {
+            "Cells": ttk.Frame(self.inspector_notebook),
+            "Grid Obstacles": ttk.Frame(self.inspector_notebook),
+            "Shooter Groups": ttk.Frame(self.inspector_notebook),
+            "Trays": ttk.Frame(self.inspector_notebook),
+        }
+        for title, tab in tabs.items():
+            self.inspector_notebook.add(tab, text=title)
+        self._build_cell_editor(tabs["Cells"])
+        self._build_obstacle_editor(tabs["Grid Obstacles"])
+        self._build_shooter_group_editor(tabs["Shooter Groups"])
+        self._build_tray_tool_panel(tabs["Trays"])
+        self.inspector_notebook.bind("<<NotebookTabChanged>>", self.on_inspector_tab_changed)
 
     def _on_sidebar_mousewheel(self, event):
         if not hasattr(self, "left_canvas"):
@@ -293,6 +310,7 @@ class EditorUiMixin:
         self.cell_edit_capacity = tk.IntVar(value=9)
         self.cell_edit_hidden_modifier = tk.BooleanVar(value=False)
         self.cell_edit_ice_modifier = tk.BooleanVar(value=False)
+        self.cell_edit_special_modifier = tk.BooleanVar(value=False)
         self.cell_edit_ice_hp = tk.IntVar(value=1)
         self.cell_edit_tunnel_direction = tk.StringVar(value="Up")
         self.cell_edit_tunnel_queue_index: Optional[int] = None
@@ -365,6 +383,7 @@ class EditorUiMixin:
         modifier_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         modifier_frame.columnconfigure(0, weight=1, uniform="modifier_cols")
         modifier_frame.columnconfigure(1, weight=1, uniform="modifier_cols")
+        modifier_frame.columnconfigure(2, weight=1, uniform="modifier_cols")
         self._toggle_button(
             modifier_frame,
             "Hidden",
@@ -377,9 +396,15 @@ class EditorUiMixin:
             self.cell_edit_ice_modifier,
             command=lambda: self.apply_modifier_button_change("Ice"),
         ).grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
+        self._toggle_button(
+            modifier_frame,
+            "Special",
+            self.cell_edit_special_modifier,
+            command=lambda: self.apply_modifier_button_change("Special"),
+        ).grid(row=0, column=2, sticky="nsew", padx=2, pady=2)
 
         ice_hp_row = ttk.Frame(modifier_frame)
-        ice_hp_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ice_hp_row.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
         ttk.Label(ice_hp_row, text="Ice HP").pack(side="left")
         self.cell_edit_ice_hp_spin = ttk.Spinbox(
             ice_hp_row,

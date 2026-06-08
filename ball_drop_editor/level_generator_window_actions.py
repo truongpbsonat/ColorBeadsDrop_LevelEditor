@@ -253,6 +253,12 @@ class LevelGeneratorWindowActionsMixin:
             allowed_devices.append("IceBlock")
         if self.allow_icetray_var.get():
             allowed_devices.append("IceTray")
+        if self.allow_special_var.get():
+            allowed_devices.append("Special")
+        if self.allow_connected_group_var.get():
+            allowed_devices.append("ConnectedGroup")
+        if self.allow_lockbar_var.get():
+            allowed_devices.append("LockBar")
         config = GeneratorConfig(
             rows=max(1, safe_int(str(self.rows_var.get()), 6)),
             cols=max(1, safe_int(str(self.cols_var.get()), 5)),
