@@ -8,6 +8,7 @@ from .editor_cells import EditorCellsMixin
 from .editor_file_actions import EditorFileActionsMixin
 from .editor_gates import EditorGateMixin
 from .editor_grid import EditorGridMixin
+from .editor_obstacles_groups import EditorObstacleGroupMixin
 from .editor_paths import DEFAULT_LEVEL_SAVE_DIR
 from .editor_state import EditorStateMixin
 from .editor_ui import EditorUiMixin
@@ -20,6 +21,7 @@ class BallDropLevelEditor(
     EditorUiMixin,
     EditorFileActionsMixin,
     EditorGateMixin,
+    EditorObstacleGroupMixin,
     EditorCellsMixin,
     EditorValidationMixin,
     EditorGridMixin,
@@ -61,6 +63,9 @@ class BallDropLevelEditor(
         self.tunnel_queue_buttons: Dict[int, tk.Button] = {}
         self.tunnel_queue_button_frames: Dict[int, tk.Frame] = {}
         self.tunnel_queue_drag_index: Optional[int] = None
+        self.selected_obstacle_index: Optional[int] = None
+        self.selected_group_index: Optional[int] = None
+        self.obstacle_custom_cells: Set[Tuple[int, int]] = set()
         self._syncing_cell_editor = False
         self._syncing_gate_direct_controls = False
 

@@ -81,12 +81,12 @@ class EditorValidationMixin:
                 shooter = entity.get("shooter", {})
                 color = shooter.get("colorId")
                 if color in BALL_COLORS and color != "None":
-                    shooter_by_color[color] = shooter_by_color.get(color, 0) + max(0, safe_int(str(shooter.get("capacity", 0)), 0))
+                    shooter_by_color[color] = shooter_by_color.get(color, 0) + self._effective_shooter_capacity(shooter)
             if entity.get("type") == "Tunnel":
                 for shooter in entity.get("shooterQueue", []):
                     color = shooter.get("colorId")
                     if color in BALL_COLORS and color != "None":
-                        shooter_by_color[color] = shooter_by_color.get(color, 0) + max(0, safe_int(str(shooter.get("capacity", 0)), 0))
+                        shooter_by_color[color] = shooter_by_color.get(color, 0) + self._effective_shooter_capacity(shooter)
 
         for gate in self.level.get("gateSystem", {}).get("gates", []):
             for tray in gate.get("trayQueue", []):
@@ -95,6 +95,13 @@ class EditorValidationMixin:
                     if color in BALL_COLORS and color != "None":
                         tray_by_color[color] = tray_by_color.get(color, 0) + max(0, safe_int(str(layer.get("requiredCount", 0)), 0))
         return shooter_by_color, tray_by_color
+
+    def _effective_shooter_capacity(self, shooter: Dict[str, object]) -> int:
+        capacity = max(0, safe_int(str(shooter.get("capacity", 0)), 0))
+        modifiers = shooter.get("modifiers", [])
+        if isinstance(modifiers, list) and any(isinstance(modifier, dict) and modifier.get("type") == "Special" for modifier in modifiers):
+            return capacity * 2
+        return capacity
 
     def mark_level_changed(self):
         self._update_level_save_status()

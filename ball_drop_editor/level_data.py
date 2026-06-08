@@ -4,7 +4,7 @@ import copy
 import uuid
 from typing import Any, Dict, List, Optional
 
-from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, GAME_MODES, LEVEL_DIFFICULTIES
+from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, GAME_MODES, LEVEL_DIFFICULTIES, SHOOTER_GROUP_TYPES
 from .utils import safe_int
 
 def make_empty_level(rows: int = 4, cols: int = 4, gate_count: int = 4) -> Dict[str, Any]:
@@ -76,6 +76,7 @@ def make_shooter_modifiers(
     hidden: bool = False,
     ice: bool = False,
     ice_hp: int = 1,
+    special: bool = False,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -85,6 +86,8 @@ def make_shooter_modifiers(
             "type": "Ice",
             "hp": max(1, ice_hp),
         })
+    if special:
+        modifiers.append({"type": "Special"})
     return modifiers
 
 
@@ -263,6 +266,8 @@ def entity_label(entity: Optional[Dict[str, Any]]) -> str:
                 modifier_labels.append("H")
             elif modifier.get("type") == "Ice":
                 modifier_labels.append(f"I{modifier.get('hp', 1)}")
+            elif modifier.get("type") == "Special":
+                modifier_labels.append("S")
         suffix = f"\n[{','.join(modifier_labels)}]" if modifier_labels else ""
         return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}{suffix}"
     if t == "Wall":
@@ -540,27 +545,34 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _normalize_obstacle(obstacle: Dict[str, Any]) -> Dict[str, Any]:
+    obstacle_type = obstacle.get("type")
     normalized = {
         "obstacleId": str(obstacle.get("obstacleId", "")).strip(),
-        "type": obstacle.get("type"),
-        "shape": _normalize_obstacle_shape(obstacle.get("shape", {})),
+        "type": obstacle_type,
+        "shape": _normalize_obstacle_shape(
+            obstacle.get("shape", {}),
+            default_width=3 if obstacle_type == "IceBlock" else 1,
+            default_height=3 if obstacle_type == "IceBlock" else 1,
+        ),
     }
     if normalized["type"] == "IceBlock":
         normalized["hp"] = safe_int(str(obstacle.get("hp", 1)), 1)
-        normalized["blocksPath"] = bool(obstacle.get("blocksPath", True))
-        normalized["locksShooter"] = bool(obstacle.get("locksShooter", True))
+    elif normalized["type"] == "LockBar":
+        normalized["direction"] = _enum_name(obstacle.get("direction"), DIRECTIONS, "Right")
+        normalized["length"] = max(1, safe_int(str(obstacle.get("length", 3)), 3))
     return normalized
 
 
-def _normalize_obstacle_shape(shape: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_obstacle_shape(shape: Dict[str, Any], default_width: int = 1, default_height: int = 1) -> Dict[str, Any]:
+    shape = shape or {}
     shape_type = str(shape.get("type", "")).strip() or "Rect"
     if shape_type == "Cells":
         shape_type = "CustomCells"
     return {
         "type": shape_type,
         "origin": _normalize_position(shape.get("origin", {})),
-        "width": max(1, safe_int(str(shape.get("width", 1)), 1)),
-        "height": max(1, safe_int(str(shape.get("height", 1)), 1)),
+        "width": max(1, safe_int(str(shape.get("width", default_width)), default_width)),
+        "height": max(1, safe_int(str(shape.get("height", default_height)), default_height)),
         "cells": [_normalize_position(cell) for cell in shape.get("cells", [])],
     }
 
@@ -573,9 +585,12 @@ def _normalize_position(position: Dict[str, Any]) -> Dict[str, int]:
 
 
 def _normalize_shooter_group(group: Dict[str, Any]) -> Dict[str, Any]:
+    group_type = group.get("type")
+    if group_type not in SHOOTER_GROUP_TYPES:
+        group_type = "Connected"
     return {
         "groupId": str(group.get("groupId", "")).strip(),
-        "type": group.get("type", "None"),
+        "type": group_type,
         "shooterIds": [str(shooter_id) for shooter_id in group.get("shooterIds", [])],
     }
 

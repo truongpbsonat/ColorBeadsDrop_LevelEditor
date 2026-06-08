@@ -35,9 +35,9 @@ COLOR_HEX = {
 ENTITY_TYPES = ["Empty", "Shooter", "Wall", "Tunnel"]
 RUNTIME_ENTITY_TYPES = ["Shooter", "Wall", "Tunnel"]
 DIRECTIONS = ["Up", "Down", "Left", "Right"]
-SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden"]
+SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special"]
 TRAY_MODIFIER_TYPES = ["Ice"]
-GRID_OBSTACLE_TYPES = ["IceBlock"]
+GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar"]
 GRID_OBSTACLE_SHAPE_TYPES = ["Rect", "CustomCells", "Plus", "LineHorizontal", "LineVertical"]
 SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]
 GAME_MODES = ["Classic"]
@@ -45,5 +45,5 @@ LEVEL_DIFFICULTIES = ["Normal", "Hard", "SuperHard"]
 
 # Canonical mechanic ids. Keep in sync with BallDropMechanicIds.cs and the MechanicCatalogConfig asset.
 MECHANIC_IDS = [
-    "Tunnel", "IceShooter", "HiddenShooter", "IceTray"
+    "Tunnel", "IceBlock", "IceShooter", "HiddenShooter", "IceTray"
 ]

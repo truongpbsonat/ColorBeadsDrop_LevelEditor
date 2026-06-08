@@ -79,8 +79,10 @@ class EditorCellsMixin:
         modifiers = shooters[0].get("modifiers", [])
         hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
         ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
+        special = next((modifier for modifier in modifiers if modifier.get("type") == "Special"), None)
         self.cell_edit_hidden_modifier.set(hidden is not None)
         self.cell_edit_ice_modifier.set(ice is not None)
+        self.cell_edit_special_modifier.set(special is not None)
         if ice is not None:
             self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
         self.update_cell_editor_modifier_state()
@@ -109,7 +111,7 @@ class EditorCellsMixin:
             return None
         self.set_selected_modifier_enabled(
             modifier_type,
-            self.cell_edit_hidden_modifier.get() if modifier_type == "Hidden" else self.cell_edit_ice_modifier.get(),
+            self._cell_editor_modifier_var(modifier_type).get(),
         )
         return None
 
@@ -142,6 +144,7 @@ class EditorCellsMixin:
             hidden=self.cell_edit_hidden_modifier.get(),
             ice=self.cell_edit_ice_modifier.get(),
             ice_hp=max(1, safe_int(str(self.cell_edit_ice_hp.get()), 1)),
+            special=self.cell_edit_special_modifier.get(),
         )
 
     def _cell_editor_shooter_payload(self, existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -159,6 +162,8 @@ class EditorCellsMixin:
                 labels.append("Hidden")
             elif modifier.get("type") == "Ice":
                 labels.append(f"Ice {modifier.get('hp', 1)}")
+            elif modifier.get("type") == "Special":
+                labels.append("Special")
         return ", ".join(labels)
 
     def _selected_tunnel_entity(self) -> Optional[Dict[str, Any]]:
@@ -278,8 +283,10 @@ class EditorCellsMixin:
     def _set_cell_editor_modifiers(self, modifiers: List[Dict[str, Any]]):
         hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
         ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
+        special = next((modifier for modifier in modifiers if modifier.get("type") == "Special"), None)
         self.cell_edit_hidden_modifier.set(hidden is not None)
         self.cell_edit_ice_modifier.set(ice is not None)
+        self.cell_edit_special_modifier.set(special is not None)
         if ice is not None:
             self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
         self.update_cell_editor_modifier_state()
@@ -519,6 +526,8 @@ class EditorCellsMixin:
                     "type": "Ice",
                     "hp": max(1, safe_int(str(self.cell_edit_ice_hp.get()), 1)),
                 })
+            elif enabled and not existing and modifier_type == "Special":
+                modifiers.append({"type": "Special"})
             shooter["modifiers"] = modifiers
 
         if modifier_type == "Hidden":
@@ -526,10 +535,19 @@ class EditorCellsMixin:
         elif modifier_type == "Ice":
             self.cell_edit_ice_modifier.set(enabled)
             self.update_cell_editor_modifier_state()
+        elif modifier_type == "Special":
+            self.cell_edit_special_modifier.set(enabled)
         self._update_selected_label()
         self._refresh_grid_button_states()
         self._refresh_cell_tunnel_queue(self._selected_tunnel_queue_index())
         self.refresh_json_preview()
+
+    def _cell_editor_modifier_var(self, modifier_type: str) -> tk.BooleanVar:
+        if modifier_type == "Hidden":
+            return self.cell_edit_hidden_modifier
+        if modifier_type == "Special":
+            return self.cell_edit_special_modifier
+        return self.cell_edit_ice_modifier
 
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:
         if entity and entity.get("type") == "Shooter":
@@ -627,6 +645,11 @@ class EditorCellsMixin:
             self._refresh_grid_button_states()
 
     def on_grid_cell_click(self, row: int, col: int, event=None):
+        mode = self.editor_tool_mode.get() if hasattr(self, "editor_tool_mode") else "Cells"
+        if mode == "Obstacles" and hasattr(self, "on_obstacle_grid_click"):
+            return self.on_obstacle_grid_click(row, col, event)
+        if mode == "Groups" and hasattr(self, "on_group_grid_click"):
+            return self.on_group_grid_click(row, col, event)
         multi_shooter = self._grid_multi_shooter_select_enabled()
         additive = multi_shooter and event is not None and self._is_multi_select_event(event)
         paint_option = getattr(self, "grid_paint_on_click_var", None)

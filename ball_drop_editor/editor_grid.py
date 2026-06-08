@@ -28,6 +28,8 @@ class EditorGridMixin:
         self._update_selected_label()
         self.refresh_gate_ui()
         self.refresh_gate_text()
+        if hasattr(self, "refresh_obstacle_group_ui"):
+            self.refresh_obstacle_group_ui()
         self.refresh_json_preview()
         self._refresh_level_folder_files()
 
@@ -46,6 +48,17 @@ class EditorGridMixin:
                 entity = cell.get("entity")
                 is_selected = self.selected_cell == (r, c) or (r, c) in self.selected_grid_cells
                 frame_bg, frame_padx, frame_pady = self._grid_selection_frame_style(is_selected, entity)
+                if hasattr(self, "grid_cell_frame_style"):
+                    frame_bg, frame_padx, frame_pady = self.grid_cell_frame_style(r, c, (frame_bg, frame_padx, frame_pady))
+                label = entity_label(entity)
+                if hasattr(self, "grid_cell_extra_label"):
+                    label += self.grid_cell_extra_label(r, c)
+                bg = entity_bg(entity)
+                if hasattr(self, "grid_cell_bg"):
+                    bg = self.grid_cell_bg(r, c, bg)
+                fg = self._grid_entity_fg(entity)
+                if hasattr(self, "grid_cell_fg"):
+                    fg = self.grid_cell_fg(r, c, fg)
                 border = tk.Frame(
                     self.grid_inner,
                     bg=frame_bg,
@@ -55,12 +68,12 @@ class EditorGridMixin:
                 border.grid(row=r, column=c, padx=2, pady=2)
                 btn = tk.Button(
                     border,
-                    text=entity_label(entity),
+                    text=label,
                     width=10,
                     height=4,
                     relief="flat",
-                    bg=entity_bg(entity),
-                    fg=self._grid_entity_fg(entity),
+                    bg=bg,
+                    fg=fg,
                 )
                 btn.pack(fill="both", expand=True)
                 btn.bind("<ButtonPress-1>", lambda e, rr=r, cc=c: self.start_grid_drag(e, rr, cc))
@@ -70,6 +83,8 @@ class EditorGridMixin:
                 btn.bind("<Double-Button-3>", lambda e, rr=r, cc=c: self.clear_grid_cell(rr, cc))
                 self.grid_buttons[(r, c)] = btn
                 self.grid_button_frames[(r, c)] = border
+        if hasattr(self, "draw_group_connectors"):
+            self.after_idle(self.draw_group_connectors)
 
     def _refresh_grid_button_states(self):
         if not self.grid_buttons:
@@ -79,6 +94,17 @@ class EditorGridMixin:
             entity = cell.get("entity")
             is_selected = self.selected_cell == (row, col) or (row, col) in self.selected_grid_cells
             frame_bg, frame_padx, frame_pady = self._grid_selection_frame_style(is_selected, entity)
+            if hasattr(self, "grid_cell_frame_style"):
+                frame_bg, frame_padx, frame_pady = self.grid_cell_frame_style(row, col, (frame_bg, frame_padx, frame_pady))
+            label = entity_label(entity)
+            if hasattr(self, "grid_cell_extra_label"):
+                label += self.grid_cell_extra_label(row, col)
+            bg = entity_bg(entity)
+            if hasattr(self, "grid_cell_bg"):
+                bg = self.grid_cell_bg(row, col, bg)
+            fg = self._grid_entity_fg(entity)
+            if hasattr(self, "grid_cell_fg"):
+                fg = self.grid_cell_fg(row, col, fg)
             frame = self.grid_button_frames.get((row, col))
             if frame is not None:
                 frame.configure(
@@ -87,10 +113,12 @@ class EditorGridMixin:
                     pady=frame_pady,
                 )
             btn.configure(
-                text=entity_label(entity),
-                bg=entity_bg(entity),
-                fg=self._grid_entity_fg(entity),
+                text=label,
+                bg=bg,
+                fg=fg,
             )
+        if hasattr(self, "draw_group_connectors"):
+            self.after_idle(self.draw_group_connectors)
 
     def start_grid_drag(self, event, row: int, col: int):
         self.grid_drag_cell = (row, col)
@@ -102,6 +130,10 @@ class EditorGridMixin:
         source = self.grid_drag_cell
         self.grid_drag_cell = None
         if target is None:
+            return
+        mode = self.editor_tool_mode.get() if hasattr(self, "editor_tool_mode") else "Cells"
+        if mode in {"Obstacles", "Groups"}:
+            self.on_grid_cell_click(target[0], target[1], event)
             return
         if target == source:
             self.on_grid_cell_click(source[0], source[1], event)

@@ -19,6 +19,7 @@ class EditorStateMixin:
         self.level_save_status_var = tk.StringVar(value="Status: Saved")
         self.rows_var = tk.IntVar(value=4)
         self.cols_var = tk.IntVar(value=4)
+        self.editor_tool_mode = tk.StringVar(value="Cells")
 
     def _level_folder_label(self) -> str:
         folder_name = os.path.basename(os.path.normpath(self.level_folder)) or self.level_folder
