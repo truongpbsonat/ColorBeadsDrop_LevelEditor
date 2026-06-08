@@ -130,6 +130,7 @@ class LevelColorReplaceTool(tk.Toplevel):
         self.summaries: List[LevelColorSummary] = []
         self.path_by_item: Dict[str, str] = {}
         self.color_by_usage_item: Dict[str, str] = {}
+        self.source_color_buttons: Dict[str, tk.Button] = {}
         self.folder_var = tk.StringVar(value=initial_folder or "")
         self.source_color_var = tk.StringVar()
         self.replacement_color_var = tk.StringVar(value="Blue")
@@ -219,10 +220,10 @@ class LevelColorReplaceTool(tk.Toplevel):
         replace_frame.columnconfigure(5, weight=1)
 
         ttk.Label(replace_frame, text="Source").grid(row=0, column=0, sticky="w")
-        self.source_combo = ttk.Combobox(replace_frame, textvariable=self.source_color_var, state="readonly", width=18)
-        self.source_combo.grid(row=0, column=1, sticky="w", padx=(4, 14))
+        self.source_palette = ttk.Frame(replace_frame)
+        self.source_palette.grid(row=0, column=1, columnspan=5, sticky="ew", padx=(4, 14))
 
-        ttk.Label(replace_frame, text="Replacement").grid(row=0, column=2, sticky="w")
+        ttk.Label(replace_frame, text="Replacement").grid(row=1, column=0, sticky="w", pady=(8, 0))
         self.replacement_combo = ttk.Combobox(
             replace_frame,
             textvariable=self.replacement_color_var,
@@ -230,14 +231,14 @@ class LevelColorReplaceTool(tk.Toplevel):
             state="readonly",
             width=18,
         )
-        self.replacement_combo.grid(row=0, column=3, sticky="w", padx=(4, 14))
+        self.replacement_combo.grid(row=1, column=1, sticky="w", padx=(4, 14), pady=(8, 0))
         self.replacement_combo.bind("<<ComboboxSelected>>", lambda _event: self.refresh_replacement_preview())
 
         self.replacement_preview = tk.Label(replace_frame, width=10, relief="solid", bd=1)
-        self.replacement_preview.grid(row=0, column=4, sticky="w")
+        self.replacement_preview.grid(row=1, column=2, sticky="w", pady=(8, 0))
 
         palette = ttk.Frame(replace_frame)
-        palette.grid(row=1, column=0, columnspan=6, sticky="ew", pady=(8, 0))
+        palette.grid(row=2, column=0, columnspan=6, sticky="ew", pady=(8, 0))
         for index, color in enumerate(SELECTABLE_BALL_COLORS):
             button = tk.Button(
                 palette,
@@ -351,12 +352,12 @@ class LevelColorReplaceTool(tk.Toplevel):
 
     def update_source_colors(self, usages: Dict[str, ColorUsage]) -> None:
         colors = tuple(sorted(usages, key=color_sort_key))
-        self.source_combo.configure(values=colors)
         current = self.source_color_var.get()
         if colors and current not in colors:
             self.source_color_var.set(colors[0])
         elif not colors:
             self.source_color_var.set("")
+        self.rebuild_source_color_buttons(colors, usages)
 
     def on_usage_color_selected(self, _event: Optional[tk.Event] = None) -> None:
         selection = self.usage_tree.selection()
@@ -364,7 +365,43 @@ class LevelColorReplaceTool(tk.Toplevel):
             return
         color = self.color_by_usage_item.get(selection[0])
         if color:
-            self.source_color_var.set(color)
+            self.set_source_color(color)
+
+    def rebuild_source_color_buttons(self, colors: Sequence[str], usages: Dict[str, ColorUsage]) -> None:
+        for child in self.source_palette.winfo_children():
+            child.destroy()
+        self.source_color_buttons.clear()
+
+        if not colors:
+            ttk.Label(self.source_palette, text="No colors in selected level(s)").grid(row=0, column=0, sticky="w")
+            return
+
+        for index, color in enumerate(colors):
+            usage = usages[color]
+            bg = COLOR_HEX.get(color, "#DDDDDD")
+            button = tk.Button(
+                self.source_palette,
+                text=f"{color}\n{usage.total_refs}",
+                width=10,
+                height=2,
+                bg=bg,
+                fg=color_text_hex(color) if color in COLOR_HEX else "#111111",
+                activebackground=bg,
+                command=lambda next_color=color: self.set_source_color(next_color),
+            )
+            button.grid(row=index // 6, column=index % 6, padx=2, pady=2, sticky="ew")
+            self.source_palette.columnconfigure(index % 6, weight=1)
+            self.source_color_buttons[color] = button
+        self.refresh_source_color_buttons()
+
+    def set_source_color(self, color: str) -> None:
+        self.source_color_var.set(color)
+        self.refresh_source_color_buttons()
+
+    def refresh_source_color_buttons(self) -> None:
+        selected = self.source_color_var.get()
+        for color, button in self.source_color_buttons.items():
+            button.configure(relief="sunken" if color == selected else "raised", bd=4 if color == selected else 1)
 
     def set_replacement_color(self, color: str) -> None:
         self.replacement_color_var.set(color)

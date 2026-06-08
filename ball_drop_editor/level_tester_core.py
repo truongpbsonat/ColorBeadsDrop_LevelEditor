@@ -465,23 +465,24 @@ class BallDropSimulator:
         state.conveyor[0] = last
 
         consumed_slots: set[int] = set()
-        consumed_gates: set[int] = set()
         for gate_index in GATE_PRIORITY:
             if gate_index >= len(state.gates) or not state.gates[gate_index]:
                 continue
             for slot in GATE_PICKUP_RANGES[gate_index]:
                 slot %= CONVEYOR_SLOTS
-                if slot in consumed_slots or gate_index in consumed_gates:
+                if slot in consumed_slots:
                     continue
                 ball = state.conveyor[slot]
-                if ball is not None and self._gate_needs_color(state, gate_index, ball):
+                if (
+                    ball is not None
+                    and self._gate_needs_color(state, gate_index, ball)
+                    and not self._earlier_gate_needs_color(state, gate_index, ball)
+                ):
                     state.conveyor[slot] = None
                     consumed_slots.add(slot)
-                    consumed_gates.add(gate_index)
                     self._consume_gate_ball(state, gate_index)
                     self.decrement_ice(state)
                     self.settle_tunnels(state)
-                    break
 
         if state.hopper and state.conveyor[0] is None:
             state.conveyor[0] = state.hopper.pop(0)
@@ -496,6 +497,14 @@ class BallDropSimulator:
         if not tray or tray.ice_hp > 0 or not tray.layers or not tray.layers[0]:
             return False
         return tray.layers[0][0] == color
+
+    def _earlier_gate_needs_color(self, state: GameState, gate_index: int, color: str) -> bool:
+        for earlier_gate_index in GATE_PRIORITY:
+            if earlier_gate_index == gate_index:
+                return False
+            if self._gate_needs_color(state, earlier_gate_index, color):
+                return True
+        return False
 
     def _consume_gate_ball(self, state: GameState, gate_index: int) -> None:
         tray = state.gates[gate_index][0]
