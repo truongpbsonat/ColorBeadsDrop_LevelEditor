@@ -157,7 +157,12 @@
               "shooterId": "s_tunnel_6ff147",
               "colorId": "Blue",
               "capacity": 9,
-              "modifiers": []
+              "modifiers": [
+                {
+                  "type": "Ice",
+                  "hp": 30
+                }
+              ]
             },
             {
               "shooterId": "s_tunnel_85e09a",
@@ -206,7 +211,12 @@
             "shooterId": "s_2_1_d285",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 45
+              }
+            ]
           }
         }
       },
@@ -236,7 +246,12 @@
             "shooterId": "s_2_3_ee54",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 30
+              }
+            ]
           }
         }
       },
@@ -260,7 +275,11 @@
             "shooterId": "s_3_0_bfd0",
             "colorId": "Blue",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -275,7 +294,11 @@
             "shooterId": "s_3_1_b012",
             "colorId": "Purple",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -290,7 +313,11 @@
             "shooterId": "s_3_2_bd23",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -305,7 +332,11 @@
             "shooterId": "s_3_3_802f",
             "colorId": "Red",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -329,7 +360,11 @@
             "shooterId": "s_4_0_9bf5",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -344,7 +379,11 @@
             "shooterId": "s_4_1_e6f0",
             "colorId": "Blue",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -359,7 +398,11 @@
             "shooterId": "s_4_2_bec1",
             "colorId": "Purple",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -374,7 +417,11 @@
             "shooterId": "s_4_3_d6d8",
             "colorId": "Yellow",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
+            ]
           }
         }
       },
@@ -405,7 +452,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6c50f2",
@@ -414,7 +462,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_48b643",
@@ -422,6 +471,12 @@
               {
                 "colorId": "Purple",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
               }
             ]
           },
@@ -432,7 +487,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_303c1d",
@@ -441,7 +497,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_7b60dc",
@@ -450,7 +507,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_3498e3",
@@ -458,6 +516,12 @@
               {
                 "colorId": "Yellow",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
               }
             ]
           },
@@ -468,7 +532,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6e5045",
@@ -477,7 +542,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ab8aea",
@@ -486,7 +552,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_fb7662",
@@ -495,7 +562,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ae4b65",
@@ -504,7 +572,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_daae2f",
@@ -513,7 +582,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6c4be7",
@@ -522,7 +592,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_34fa27",
@@ -531,7 +602,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_0870b1",
@@ -540,7 +612,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_02f101",
@@ -549,7 +622,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_d53e04",
@@ -558,7 +632,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -572,6 +647,12 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
+              }
             ]
           },
           {
@@ -581,7 +662,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_9c1dc8",
@@ -590,7 +672,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4a5d7e",
@@ -599,7 +682,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_bcf1d3",
@@ -608,7 +692,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_c54627",
@@ -617,7 +702,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_cd66f9",
@@ -626,7 +712,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ea077b",
@@ -635,7 +722,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_f33bb1",
@@ -644,7 +732,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_1b5f30",
@@ -653,7 +742,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4b58e5",
@@ -661,6 +751,12 @@
               {
                 "colorId": "Yellow",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
               }
             ]
           },
@@ -671,7 +767,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ca7765",
@@ -680,7 +777,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_38e2aa",
@@ -689,7 +787,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_3cd955",
@@ -698,7 +797,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_2232ae",
@@ -707,7 +807,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_5e7032",
@@ -716,7 +817,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_229611",
@@ -725,7 +827,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_0c919a",
@@ -734,7 +837,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -748,7 +852,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_fb621c",
@@ -757,7 +862,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_8f1522",
@@ -766,7 +872,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_fb1cc4",
@@ -775,7 +882,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_b6061b",
@@ -784,7 +892,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_95f5ae",
@@ -793,7 +902,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_7059c7",
@@ -802,7 +912,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_622c40",
@@ -811,7 +922,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_b0bea7",
@@ -820,7 +932,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_d3ca2b",
@@ -829,7 +942,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_0320a3",
@@ -838,7 +952,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_8279e3",
@@ -847,7 +962,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_33e19b",
@@ -856,7 +972,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_0f9475",
@@ -865,7 +982,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_a77593",
@@ -874,7 +992,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ccded4",
@@ -883,7 +1002,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4cf21d",
@@ -892,7 +1012,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_95446d",
@@ -901,7 +1022,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_951aef",
@@ -910,7 +1032,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -924,7 +1047,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_485609",
@@ -933,7 +1057,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_dca785",
@@ -942,7 +1067,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_68f85f",
@@ -951,7 +1077,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_906702",
@@ -960,7 +1087,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_85a295",
@@ -968,6 +1096,12 @@
               {
                 "colorId": "Red",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
               }
             ]
           },
@@ -978,7 +1112,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_0c2c8f",
@@ -987,7 +1122,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ca5cea",
@@ -996,7 +1132,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_90bb59",
@@ -1005,7 +1142,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_e0efc6",
@@ -1014,7 +1152,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_b40941",
@@ -1023,7 +1162,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_f5024b",
@@ -1032,7 +1172,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_88ee9d",
@@ -1041,7 +1182,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6d93af",
@@ -1050,7 +1192,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_db30ae",
@@ -1058,6 +1201,12 @@
               {
                 "colorId": "Red",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Ice",
+                "hp": 3
               }
             ]
           },
@@ -1068,7 +1217,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_32a3fc",
@@ -1077,7 +1227,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_48a541",
@@ -1086,10 +1237,16 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "Tunnel",
+    "HiddenShooter",
+    "IceShooter"
+  ]
 }

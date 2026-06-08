@@ -57,6 +57,18 @@ class CellState:
 
 
 @dataclass
+class TrayState:
+    layers: List[List[Any]]
+    ice_hp: int = 0
+
+    def key(self) -> Tuple[Any, ...]:
+        return (
+            self.ice_hp,
+            tuple(tuple(layer) for layer in self.layers),
+        )
+
+
+@dataclass
 class ClickAction:
     row: int
     column: int
@@ -71,7 +83,7 @@ class GameState:
     rows: int
     cols: int
     cells: List[CellState]
-    gates: List[List[List[List[Any]]]]
+    gates: List[List[TrayState]]
     obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
     hopper: List[str] = field(default_factory=list)
@@ -87,10 +99,7 @@ class GameState:
             tuple(cell.key() for cell in self.cells),
             self.obstacle_blocked,
             tuple(
-                tuple(
-                    tuple(tuple(layer) for layer in tray)
-                    for tray in gate
-                )
+                tuple(tray.key() for tray in gate)
                 for gate in self.gates
             ),
             tuple(self.conveyor),
@@ -151,7 +160,7 @@ class BallDropSimulator:
                     if color and remaining > 0:
                         layers.append([color, remaining])
                 if layers:
-                    gate.append(layers)
+                    gate.append(TrayState(layers=layers, ice_hp=self._parse_tray_ice(tray)))
             gates.append(gate)
 
         obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
@@ -208,6 +217,13 @@ class BallDropSimulator:
             capacity=max(0, int(shooter.get("capacity", 0))),
             ice_hp=ice_hp,
         )
+
+    def _parse_tray_ice(self, tray: Dict[str, Any]) -> int:
+        ice_hp = 0
+        for modifier in tray.get("modifiers", []) or []:
+            if modifier.get("type") == "Ice":
+                ice_hp = max(ice_hp, int(modifier.get("hp", 3)))
+        return ice_hp
 
     def is_win(self, state: GameState) -> bool:
         return (
@@ -345,18 +361,20 @@ class BallDropSimulator:
                 state.lost = True
 
     def _gate_needs_color(self, state: GameState, gate_index: int, color: str) -> bool:
-        gate = state.gates[gate_index]
-        if not gate or not gate[0] or not gate[0][0]:
+        tray = self._front_tray(state, gate_index)
+        if not tray or tray.ice_hp > 0 or not tray.layers or not tray.layers[0]:
             return False
-        return gate[0][0][0] == color
+        return tray.layers[0][0] == color
 
     def _consume_gate_ball(self, state: GameState, gate_index: int) -> None:
-        layer = state.gates[gate_index][0][0]
+        tray = state.gates[gate_index][0]
+        layer = tray.layers[0]
         layer[1] -= 1
+        self.decrement_adjacent_tray_ice(state, gate_index)
         if layer[1] > 0:
             return
-        state.gates[gate_index][0].pop(0)
-        if not state.gates[gate_index][0]:
+        tray.layers.pop(0)
+        if not tray.layers:
             state.gates[gate_index].pop(0)
 
     def decrement_ice(self, state: GameState) -> None:
@@ -368,12 +386,41 @@ class BallDropSimulator:
                     if shooter.ice_hp > 0:
                         shooter.ice_hp -= 1
 
+    def decrement_adjacent_tray_ice(self, state: GameState, gate_index: int) -> None:
+        front_trays = self._front_tray_refs(state)
+        receiving_index = next(
+            (index for index, (front_gate_index, _tray) in enumerate(front_trays) if front_gate_index == gate_index),
+            None,
+        )
+        if receiving_index is None:
+            return
+        for neighbor_index in (receiving_index - 1, receiving_index + 1):
+            if not (0 <= neighbor_index < len(front_trays)):
+                continue
+            _front_gate_index, tray = front_trays[neighbor_index]
+            if tray.ice_hp > 0:
+                tray.ice_hp -= 1
+
     def front_gate_colors(self, state: GameState) -> List[str]:
         colors = []
-        for gate in state.gates:
-            if gate and gate[0] and gate[0][0]:
-                colors.append(gate[0][0][0])
+        for gate_index in range(len(state.gates)):
+            tray = self._front_tray(state, gate_index)
+            if tray and tray.ice_hp <= 0 and tray.layers and tray.layers[0]:
+                colors.append(tray.layers[0][0])
         return colors
+
+    def _front_tray(self, state: GameState, gate_index: int) -> Optional[TrayState]:
+        if not (0 <= gate_index < len(state.gates)):
+            return None
+        gate = state.gates[gate_index]
+        return gate[0] if gate else None
+
+    def _front_tray_refs(self, state: GameState) -> List[Tuple[int, TrayState]]:
+        return [
+            (gate_index, gate[0])
+            for gate_index, gate in enumerate(state.gates)
+            if gate
+        ]
 
     def advance_to_decision(self, state: GameState, max_steps: int = DEFAULT_MAX_STEPS) -> None:
         while (
@@ -583,7 +630,7 @@ class DeepSearchSolver:
         total = 0
         for gate in state.gates:
             for tray in gate:
-                for _, remaining in tray:
+                for _, remaining in tray.layers:
                     total += int(remaining)
         return total
 
@@ -591,7 +638,7 @@ class DeepSearchSolver:
         total = 0
         for gate in state.gates:
             for tray in gate:
-                for layer_color, remaining in tray:
+                for layer_color, remaining in tray.layers:
                     if layer_color == color:
                         total += int(remaining)
         return total

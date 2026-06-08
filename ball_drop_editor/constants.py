@@ -45,5 +45,5 @@ LEVEL_DIFFICULTIES = ["Normal", "Hard", "SuperHard"]
 
 # Canonical mechanic ids. Keep in sync with BallDropMechanicIds.cs and the MechanicCatalogConfig asset.
 MECHANIC_IDS = [
-    "Tunnel", "IceShooter", "HiddenShooter"
+    "Tunnel", "IceShooter", "HiddenShooter", "IceTray"
 ]
