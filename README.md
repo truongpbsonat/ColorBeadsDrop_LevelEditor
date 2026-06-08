@@ -35,7 +35,7 @@ Tool chỉ dùng thư viện chuẩn `tkinter`, không cần cài package ngoài
 
 ## Lưu ý
 
-- JSON tạo ra bám đúng `LevelData`: metadata Sonat (`gameMode`, `difficulty`, `level`, `category`) và gameplay data (`time`, `levelName`, `grid`, `gateSystem`).
+- JSON tạo ra bám đúng `LevelData`: metadata (`gameMode`, `difficulty`, `level`, `category`) và gameplay data (`time`, `levelName`, `grid`, `gateSystem`).
 - JSON grid dùng format `GridCellData.entity` polymorphic theo `type`.
 - Có hỗ trợ ban đầu: `Shooter`, `Wall`, `Tunnel`.
 - Validator hiện tại bám theo `Assets/_Project/Scripts/Gameplay/Level/LevelValidator.cs`:
