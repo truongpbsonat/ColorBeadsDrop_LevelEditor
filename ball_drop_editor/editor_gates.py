@@ -410,6 +410,7 @@ class EditorGateMixin:
         return bool(state & 0x0001 or state & 0x0004)
 
     def _select_gate_area(self, gate_index: int, additive: bool):
+        self._active_color_target = "gate"
         if additive:
             if gate_index in self.selected_gate_indices and len(self.selected_gate_indices) > 1:
                 self.selected_gate_indices.remove(gate_index)
@@ -426,6 +427,7 @@ class EditorGateMixin:
         self.gate_drag_source = None
 
     def _select_tray_area(self, gate_index: int, tray_index: int, additive: bool):
+        self._active_color_target = "tray"
         tray_ref = (gate_index, tray_index)
         if additive:
             if tray_ref in self.selected_trays and len(self.selected_trays) > 1:
@@ -479,6 +481,7 @@ class EditorGateMixin:
         self.swap_trays(source, target)
 
     def select_layer_from_control(self):
+        self._active_color_target = "tray"
         self.selected_layer_index = max(0, safe_int(str(self.selected_layer_var.get()), 0))
         self.clamp_gate_selection()
         self.refresh_gate_direct_controls()

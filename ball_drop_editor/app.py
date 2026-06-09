@@ -66,6 +66,7 @@ class BallDropLevelEditor(
         self.selected_obstacle_index: Optional[int] = None
         self.selected_group_index: Optional[int] = None
         self.obstacle_custom_cells: Set[Tuple[int, int]] = set()
+        self._active_color_target = "cell"
         self._syncing_cell_editor = False
         self._syncing_gate_direct_controls = False
 
