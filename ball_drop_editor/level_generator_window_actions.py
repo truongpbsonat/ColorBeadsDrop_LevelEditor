@@ -291,7 +291,8 @@ class LevelGeneratorWindowActionsMixin:
             if self.reference_level:
                 config.reference_level = copy.deepcopy(self.reference_level)
                 config.reference_curve_targets = list(self.reference_curve_targets)
-                config.reference_min_difference = 0.30
+                reference_difference = safe_float(str(self.reference_difference_var.get()), 30.0)
+                config.reference_min_difference = min(100.0, max(0.0, reference_difference)) / 100.0
             config.level_id = max(1, safe_int(str(self.level_var.get()), 1))
             config.level_name = f"Level_{config.level_id}"
         elif self.mode_var.get() == "Template Folder":

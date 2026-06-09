@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .level_data import normalize_runtime_level
 
@@ -84,14 +84,20 @@ def _cell_structure_signature(entity: Optional[Dict[str, Any]]) -> Any:
         return "Empty"
     entity_type = entity.get("type")
     if entity_type == "Shooter":
-        return "Shooter"
+        shooter = entity.get("shooter", {}) or {}
+        return ("Shooter", shooter.get("colorId", "None"))
     if entity_type == "Wall":
         return "Wall"
     if entity_type == "Tunnel":
+        queue_colors = tuple(
+            (shooter or {}).get("colorId", "None")
+            for shooter in entity.get("shooterQueue", []) or []
+        )
         return (
             "Tunnel",
             entity.get("outputDirection", "Up"),
             len(entity.get("shooterQueue", []) or []),
+            queue_colors,
         )
     return entity_type or "Unknown"
 

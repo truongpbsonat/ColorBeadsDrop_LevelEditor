@@ -153,6 +153,8 @@ class LevelGeneratorWindowUiMixin:
         ttk.Entry(runtime, textvariable=self.attempts_var, width=8).grid(row=0, column=3, sticky="w", padx=(4, 10), pady=2)
         ttk.Label(runtime, text="Seed").grid(row=0, column=4, sticky="w", pady=2)
         ttk.Entry(runtime, textvariable=self.seed_var, width=12).grid(row=0, column=5, sticky="w", padx=(4, 10), pady=2)
+        ttk.Label(runtime, text="Different %").grid(row=0, column=6, sticky="w", pady=2)
+        ttk.Entry(runtime, textvariable=self.reference_difference_var, width=7).grid(row=0, column=7, sticky="w", padx=(4, 0), pady=2)
         ttk.Label(runtime, text="Export").grid(row=1, column=0, sticky="w", pady=2)
         ttk.Entry(runtime, textvariable=self.export_folder_var, width=36).grid(row=1, column=1, columnspan=3, sticky="ew", padx=(4, 4), pady=2)
         ttk.Button(runtime, text="Folder", command=self.choose_export_folder, width=8).grid(row=1, column=4, sticky="w", pady=2)
@@ -166,13 +168,14 @@ class LevelGeneratorWindowUiMixin:
         ).grid(row=1, column=6, sticky="w", padx=(4, 0), pady=2)
         help_text = (
             "Seed: optional random seed; same config + same seed recreates the same candidate order. "
+            "Different %: minimum reference-mode difference benchmark, now including color changes. "
             "Gen 1 Level creates a PASS preview candidate. Apply to Editor and Export Level use that preview; "
             "if no PASS preview exists, they generate one first. Existing files are skipped, not overwritten."
         )
         ttk.Label(runtime, text=help_text, wraplength=900, foreground="#4B5563").grid(
             row=2,
             column=0,
-            columnspan=7,
+            columnspan=8,
             sticky="w",
             pady=(6, 0),
         )
