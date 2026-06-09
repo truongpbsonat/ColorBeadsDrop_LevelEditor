@@ -92,7 +92,7 @@ class DifficultyCurveScoringMixin:
                 candidate_notes = list(notes)
                 if self.config.reference_level:
                     candidate_notes.append(
-                        f"Reference structural difference={structural_difference * 100:.1f}%, "
+                        f"Reference difference={structural_difference * 100:.1f}%, "
                         f"curve error={reference_curve_error:.1f}."
                     )
                     if (
@@ -100,13 +100,13 @@ class DifficultyCurveScoringMixin:
                         and structural_difference < max(0.0, float(self.config.reference_min_difference))
                     ):
                         candidate_notes.append(
-                            f"Reference candidate rejected: structural difference "
+                            f"Reference candidate rejected: difference "
                             f"{structural_difference * 100:.1f}% < "
                             f"{float(self.config.reference_min_difference) * 100:.1f}%."
                         )
                         score = copy.deepcopy(score)
                         score.status = "FAIL"
-                        score.message = "Reference structural difference below threshold."
+                        score.message = "Reference difference below threshold."
                 candidate = CandidateResult(
                     level,
                     score,

@@ -128,9 +128,11 @@ class LevelColorReplaceTool(tk.Toplevel):
         self.minsize(900, 540)
         self.on_levels_changed = on_levels_changed
         self.summaries: List[LevelColorSummary] = []
-        self.path_by_item: Dict[str, str] = {}
+        self.selected_level_paths: set[str] = set()
+        self.focus_level_path: Optional[str] = None
         self.color_by_usage_item: Dict[str, str] = {}
         self.source_color_buttons: Dict[str, tk.Button] = {}
+        self.level_row_height = 28
         self.folder_var = tk.StringVar(value=initial_folder or "")
         self.source_color_var = tk.StringVar()
         self.replacement_color_var = tk.StringVar(value="Blue")
@@ -157,32 +159,22 @@ class LevelColorReplaceTool(tk.Toplevel):
         pane.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
 
         level_frame = ttk.LabelFrame(pane, text="Levels", padding=6)
-        level_frame.rowconfigure(0, weight=1)
+        level_frame.rowconfigure(1, weight=1)
         level_frame.columnconfigure(0, weight=1)
-        self.level_tree = ttk.Treeview(
-            level_frame,
-            columns=("level", "name", "colors", "file"),
-            show="headings",
-            selectmode="extended",
-        )
-        for key, title, width, stretch in [
-            ("level", "Level", 70, False),
-            ("name", "Name", 150, True),
-            ("colors", "Colors Used", 380, True),
-            ("file", "File", 110, False),
-        ]:
-            self.level_tree.heading(key, text=title)
-            self.level_tree.column(key, width=width, minwidth=60, stretch=stretch)
-        self.level_tree.grid(row=0, column=0, sticky="nsew")
-        level_scroll_y = ttk.Scrollbar(level_frame, orient="vertical", command=self.level_tree.yview)
-        level_scroll_y.grid(row=0, column=1, sticky="ns")
-        level_scroll_x = ttk.Scrollbar(level_frame, orient="horizontal", command=self.level_tree.xview)
-        level_scroll_x.grid(row=1, column=0, sticky="ew")
-        self.level_tree.configure(yscrollcommand=level_scroll_y.set, xscrollcommand=level_scroll_x.set)
-        self.level_tree.tag_configure("error", foreground="#B91C1C")
-        self.level_tree.bind("<<TreeviewSelect>>", self.on_level_selection_changed)
-        self.level_tree.bind("<Control-a>", self.select_all_levels)
-        self.level_tree.bind("<Control-A>", self.select_all_levels)
+
+        self.level_header = tk.Canvas(level_frame, height=24, highlightthickness=0, bg="#F3F4F6")
+        self.level_header.grid(row=0, column=0, sticky="ew")
+
+        self.level_canvas = tk.Canvas(level_frame, highlightthickness=1, highlightbackground="#9CA3AF", bg="#FFFFFF")
+        self.level_canvas.grid(row=1, column=0, sticky="nsew")
+        level_scroll_y = ttk.Scrollbar(level_frame, orient="vertical", command=self.level_canvas.yview)
+        level_scroll_y.grid(row=1, column=1, sticky="ns")
+        self.level_canvas.configure(yscrollcommand=level_scroll_y.set)
+        self.level_canvas.bind("<Button-1>", self.on_level_canvas_click)
+        self.level_canvas.bind("<Control-a>", self.select_all_levels)
+        self.level_canvas.bind("<Control-A>", self.select_all_levels)
+        self.level_canvas.bind("<Configure>", lambda _event: self.draw_level_list())
+        self.level_canvas.bind("<MouseWheel>", self.on_level_canvas_mousewheel)
 
         level_actions = ttk.Frame(level_frame)
         level_actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
@@ -284,36 +276,162 @@ class LevelColorReplaceTool(tk.Toplevel):
         self.status_var.set(f"Scanned {len(self.summaries)} JSON level file(s).")
 
     def populate_level_tree(self, selected_paths: set[str]) -> None:
-        self.path_by_item.clear()
-        for item in self.level_tree.get_children():
-            self.level_tree.delete(item)
-
-        select_items = []
+        self.selected_level_paths.clear()
         for summary in self.summaries:
-            colors_text = summary.error or format_color_usage(summary.colors)
-            item = self.level_tree.insert(
-                "",
-                "end",
-                values=(
-                    _level_display(summary),
-                    summary.level_name,
-                    colors_text or "No colors",
-                    os.path.basename(summary.path),
-                ),
-                tags=("error",) if summary.error else (),
-            )
-            self.path_by_item[item] = summary.path
             normalized_path = os.path.normcase(os.path.abspath(summary.path))
             if normalized_path in selected_paths:
-                select_items.append(item)
+                self.selected_level_paths.add(summary.path)
 
-        if not select_items and self.level_tree.get_children():
-            select_items = [self.level_tree.get_children()[0]]
-        if select_items:
-            self.level_tree.selection_set(*select_items)
-            self.level_tree.focus(select_items[0])
-            self.level_tree.see(select_items[0])
+        if not self.selected_level_paths and self.summaries:
+            self.selected_level_paths.add(self.summaries[0].path)
+        self.focus_level_path = next(iter(self.selected_level_paths), None)
+        self.draw_level_list()
         self.on_level_selection_changed()
+
+    def level_column_layout(self) -> List[tuple[str, int, int]]:
+        canvas_width = max(self.level_canvas.winfo_width(), 1)
+        level_width = 70
+        name_width = 150
+        file_width = 110
+        colors_width = max(160, canvas_width - level_width - name_width - file_width - 2)
+        columns = [
+            ("level", 0, level_width),
+            ("name", level_width, name_width),
+            ("colors", level_width + name_width, colors_width),
+            ("file", level_width + name_width + colors_width, file_width),
+        ]
+        return columns
+
+    def draw_level_list(self) -> None:
+        if not hasattr(self, "level_canvas"):
+            return
+        columns = self.level_column_layout()
+        table_width = columns[-1][1] + columns[-1][2]
+        self.draw_level_header(columns, table_width)
+
+        canvas = self.level_canvas
+        canvas.delete("all")
+        row_height = self.level_row_height
+        total_height = max(row_height * len(self.summaries), canvas.winfo_height())
+        canvas.configure(scrollregion=(0, 0, table_width, total_height))
+
+        for index, summary in enumerate(self.summaries):
+            y = index * row_height
+            is_selected = summary.path in self.selected_level_paths
+            fill = "#0B78D0" if is_selected else ("#FFFFFF" if index % 2 == 0 else "#F9FAFB")
+            fg = "#FFFFFF" if is_selected else ("#B91C1C" if summary.error else "#111827")
+            canvas.create_rectangle(0, y, table_width, y + row_height, fill=fill, outline="#E5E7EB")
+            self.draw_level_text_cell(canvas, columns[0], y, _level_display(summary), fg)
+            self.draw_level_text_cell(canvas, columns[1], y, summary.level_name, fg)
+            if summary.error:
+                self.draw_level_text_cell(canvas, columns[2], y, summary.error, fg)
+            else:
+                self.draw_level_color_cells(canvas, columns[2], y, summary.colors, is_selected)
+            self.draw_level_text_cell(canvas, columns[3], y, os.path.basename(summary.path), fg)
+
+    def draw_level_header(self, columns: List[tuple[str, int, int]], table_width: int) -> None:
+        header = self.level_header
+        header.delete("all")
+        header.configure(scrollregion=(0, 0, table_width, 24))
+        titles = {
+            "level": "Level",
+            "name": "Name",
+            "colors": "Colors Used",
+            "file": "File",
+        }
+        for key, x, width in columns:
+            header.create_rectangle(x, 0, x + width, 24, fill="#F3F4F6", outline="#D1D5DB")
+            header.create_text(x + width // 2, 12, text=titles[key], fill="#111827", font=("Arial", 9, "bold"))
+
+    def draw_level_text_cell(
+        self,
+        canvas: tk.Canvas,
+        column: tuple[str, int, int],
+        y: int,
+        text: str,
+        fill: str,
+    ) -> None:
+        _key, x, width = column
+        canvas.create_text(
+            x + 6,
+            y + self.level_row_height // 2,
+            text=text,
+            anchor="w",
+            fill=fill,
+            font=("Arial", 9),
+            width=max(20, width - 12),
+        )
+
+    def draw_level_color_cells(
+        self,
+        canvas: tk.Canvas,
+        column: tuple[str, int, int],
+        y: int,
+        colors: Dict[str, ColorUsage],
+        is_selected: bool,
+    ) -> None:
+        _key, x, width = column
+        if not colors:
+            canvas.create_text(x + 6, y + self.level_row_height // 2, text="No colors", anchor="w", fill="#FFFFFF" if is_selected else "#6B7280")
+            return
+
+        box_size = 18
+        gap = 5
+        start_x = x + 8
+        max_boxes = max(1, (width - 18) // (box_size + gap))
+        ordered_colors = sorted(colors, key=color_sort_key)
+        visible_colors = ordered_colors[:max_boxes]
+        for index, color in enumerate(visible_colors):
+            bx = start_x + index * (box_size + gap)
+            by = y + (self.level_row_height - box_size) // 2
+            canvas.create_rectangle(
+                bx,
+                by,
+                bx + box_size,
+                by + box_size,
+                fill=COLOR_HEX.get(color, "#DDDDDD"),
+                outline="#FFFFFF" if is_selected else "#374151",
+                width=2 if color == "White" else 1,
+            )
+
+        hidden_count = len(ordered_colors) - len(visible_colors)
+        if hidden_count > 0:
+            tx = start_x + len(visible_colors) * (box_size + gap) + 2
+            canvas.create_text(tx, y + self.level_row_height // 2, text=f"+{hidden_count}", anchor="w", fill="#FFFFFF" if is_selected else "#374151")
+
+    def on_level_canvas_click(self, event: tk.Event) -> str:
+        canvas_y = self.level_canvas.canvasy(event.y)
+        index = int(canvas_y // self.level_row_height)
+        if not (0 <= index < len(self.summaries)):
+            return "break"
+
+        path = self.summaries[index].path
+        state = getattr(event, "state", 0)
+        shift_pressed = bool(state & 0x0001)
+        ctrl_pressed = bool(state & 0x0004)
+        if shift_pressed and self.focus_level_path:
+            focus_index = next((i for i, summary in enumerate(self.summaries) if summary.path == self.focus_level_path), index)
+            start, end = sorted((focus_index, index))
+            if not ctrl_pressed:
+                self.selected_level_paths.clear()
+            self.selected_level_paths.update(summary.path for summary in self.summaries[start:end + 1])
+        elif ctrl_pressed:
+            if path in self.selected_level_paths and len(self.selected_level_paths) > 1:
+                self.selected_level_paths.remove(path)
+            else:
+                self.selected_level_paths.add(path)
+            self.focus_level_path = path
+        else:
+            self.selected_level_paths = {path}
+            self.focus_level_path = path
+
+        self.draw_level_list()
+        self.on_level_selection_changed()
+        return "break"
+
+    def on_level_canvas_mousewheel(self, event: tk.Event) -> str:
+        self.level_canvas.yview_scroll(int(-event.delta / 120), "units")
+        return "break"
 
     def on_level_selection_changed(self, _event: Optional[tk.Event] = None) -> None:
         summaries = self.selected_summaries()
@@ -414,9 +532,9 @@ class LevelColorReplaceTool(tk.Toplevel):
 
     def selected_paths(self) -> List[str]:
         return [
-            self.path_by_item[item]
-            for item in self.level_tree.selection()
-            if item in self.path_by_item
+            summary.path
+            for summary in self.summaries
+            if summary.path in self.selected_level_paths
         ]
 
     def selected_summaries(self) -> List[LevelColorSummary]:
@@ -428,17 +546,16 @@ class LevelColorReplaceTool(tk.Toplevel):
         ]
 
     def select_all_levels(self, _event: Optional[tk.Event] = None) -> str:
-        items = self.level_tree.get_children()
-        if items:
-            self.level_tree.selection_set(*items)
-            self.level_tree.focus(items[0])
+        self.selected_level_paths = {summary.path for summary in self.summaries}
+        self.focus_level_path = self.summaries[0].path if self.summaries else None
+        self.draw_level_list()
         self.on_level_selection_changed()
         return "break"
 
     def clear_level_selection(self) -> None:
-        selection = self.level_tree.selection()
-        if selection:
-            self.level_tree.selection_remove(*selection)
+        self.selected_level_paths.clear()
+        self.focus_level_path = None
+        self.draw_level_list()
         self.on_level_selection_changed()
 
     def apply_replace(self) -> None:
@@ -518,14 +635,6 @@ def merge_color_usages(color_maps: Iterable[Dict[str, ColorUsage]]) -> Dict[str,
         for color, usage in colors.items():
             merged.setdefault(color, ColorUsage()).add(usage)
     return merged
-
-
-def format_color_usage(colors: Dict[str, ColorUsage]) -> str:
-    parts = []
-    for color in sorted(colors, key=color_sort_key):
-        usage = colors[color]
-        parts.append(f"{color} S{usage.shooter_capacity}/T{usage.tray_required}")
-    return ", ".join(parts)
 
 
 def color_sort_key(color: str) -> tuple[int, int, str]:

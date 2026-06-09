@@ -186,7 +186,7 @@ class DifficultyCurveCandidateMixin:
         _, _, variant_rows, variant_cols = variants[(max(1, attempt) - 1) % len(variants)]
         self._note(
             f"Reference mode changed grid from {rows}x{cols} to {variant_rows}x{variant_cols} "
-            f"to enforce structural difference without counting color."
+            f"to help reach the reference difference benchmark."
         )
         return variant_rows, variant_cols
 

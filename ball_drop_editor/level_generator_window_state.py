@@ -51,6 +51,7 @@ class LevelGeneratorWindowStateMixin:
         self.budget_var = tk.DoubleVar(value=20.0)
         self.attempts_var = tk.IntVar(value=30)
         self.seed_var = tk.StringVar(value="")
+        self.reference_difference_var = tk.DoubleVar(value=30.0)
         self.batch_start_var = tk.IntVar(value=self.level_var.get())
         self.batch_count_var = tk.IntVar(value=5)
         self.export_folder_var = tk.StringVar(value=getattr(self.master, "level_folder", os.getcwd()))
