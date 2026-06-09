@@ -14,7 +14,7 @@ COLOR_HEX = {
     "Brown": "#6B4A2D",
     "Cyan": "#32E0F1",
     "Gray": "#788CB1",
-    "Green": "#18DE37",
+    "Green": "#2CC32C",
     "LightPink": "#FFB6C1",
     "Lime": "#B1ED19",
     "Orange": "#FF8122",
@@ -27,7 +27,7 @@ COLOR_HEX = {
     "White": "#DBDCDC",
     "Yellow": "#FFE10C",
     "LightBeige": "#F2D9B6",
-    "LightRed": "#FF8A8A",
+    "LightRed": "#FE567E",
     "DarkGreen": "#1E7A3A",
     "Wild": "#FFFFFF",
 }
