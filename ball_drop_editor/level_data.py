@@ -4,7 +4,16 @@ import copy
 import uuid
 from typing import Any, Dict, List, Optional
 
-from .constants import BALL_COLORS, COLOR_HEX, DIRECTIONS, GAME_MODES, LEVEL_DIFFICULTIES, SHOOTER_GROUP_TYPES
+from .constants import (
+    BALL_COLORS,
+    COLOR_HEX,
+    DIRECTIONS,
+    GAME_MODES,
+    LEVEL_DIFFICULTIES,
+    MECHANIC_ID_ALIASES,
+    MECHANIC_IDS,
+    SHOOTER_GROUP_TYPES,
+)
 from .utils import safe_int
 
 def make_empty_level(rows: int = 4, cols: int = 4, gate_count: int = 4) -> Dict[str, Any]:
@@ -308,7 +317,8 @@ def _normalize_mechanics(value: Any) -> List[str]:
     seen = set()
     for item in value:
         text = str(item).strip()
-        if text and text not in seen:
+        text = MECHANIC_ID_ALIASES.get(text, text)
+        if text and text in MECHANIC_IDS and text not in seen:
             seen.add(text)
             result.append(text)
     return result
@@ -333,8 +343,17 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
                 _collect_shooter_modifiers(shooter or {}, found)
 
     for obstacle in grid.get("obstacles", []) or []:
-        if isinstance(obstacle, dict) and obstacle.get("type") == "IceBlock":
+        if not isinstance(obstacle, dict):
+            continue
+        obstacle_type = obstacle.get("type")
+        if obstacle_type == "IceBlock":
             found.add("IceBlock")
+        elif obstacle_type == "LockBar":
+            found.add("LockBar")
+
+    for group in grid.get("shooterGroups", []) or []:
+        if isinstance(group, dict) and group.get("type") == "Connected" and group.get("shooterIds"):
+            found.add("ConnectedShooter")
 
     gate_system = level.get("gateSystem", {}) or {}
     for gate in gate_system.get("gates", []) or []:
@@ -343,7 +362,7 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
                 if isinstance(modifier, dict) and modifier.get("type") == "Ice":
                     found.add("IceTray")
 
-    return sorted(found)
+    return [mechanic_id for mechanic_id in MECHANIC_IDS if mechanic_id in found]
 
 
 def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
@@ -355,6 +374,8 @@ def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
             found.add("IceShooter")
         elif modifier_type == "Hidden":
             found.add("HiddenShooter")
+        elif modifier_type == "Special":
+            found.add("SpecialShooter")
 
 
 def _normalize_cell(cell: Dict[str, Any], row: int, col: int) -> Dict[str, Any]:

@@ -420,6 +420,7 @@ class EditorFileActionsMixin:
         self.level.setdefault("gateSystem", {})["gateCount"] = safe_int(str(self.gate_count_var.get()), 4)
         self.level.setdefault("gateSystem", {})["maxVisibleTrayPerGate"] = safe_int(str(self.max_visible_var.get()), 4)
         normalize_runtime_level(self.level)
+        self.mechanics_var.set(", ".join(self.level.get("mechanics", []) or []))
 
     def auto_detect_mechanics(self):
         detected = detect_mechanics(self.level)
@@ -431,7 +432,8 @@ class EditorFileActionsMixin:
         detected = detect_mechanics(self.level)
         merged = list(dict.fromkeys([*authored, *detected]))
         self.level["mechanics"] = merged
-        self.mechanics_var.set(", ".join(merged))
+        normalize_runtime_level(self.level)
+        self.mechanics_var.set(", ".join(self.level.get("mechanics", []) or []))
 
     def resize_grid(self):
         rows = max(1, self.rows_var.get())
