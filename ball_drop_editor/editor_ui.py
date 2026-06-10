@@ -287,8 +287,9 @@ class EditorUiMixin:
         self.selected_label.grid(row=3, column=0, sticky="w", pady=(8, 0))
 
     def _build_tunnel_queue_panel(self, parent):
-        self.tunnel_queue_panel = ttk.LabelFrame(parent, text="Tunnel Queue", padding=8)
+        self.tunnel_queue_panel = ttk.LabelFrame(parent, text="Tunnel Queue", padding=6, width=128)
         self.tunnel_queue_panel.grid(row=0, column=1, sticky="ns", padx=(8, 0))
+        self.tunnel_queue_panel.pack_propagate(False)
         self.tunnel_queue_panel.grid_remove()
 
         self.tunnel_queue_grid = ttk.Frame(self.tunnel_queue_panel)
@@ -297,12 +298,11 @@ class EditorUiMixin:
 
         controls = ttk.Frame(self.tunnel_queue_panel)
         controls.pack(fill="x", pady=(8, 0))
-        ttk.Button(controls, text="Add", command=self.add_tunnel_queue_shooter).grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=2)
-        ttk.Button(controls, text="Delete", command=self.remove_tunnel_queue_shooter).grid(row=0, column=1, sticky="ew", padx=4, pady=2)
-        ttk.Button(controls, text="Up", command=lambda: self.move_tunnel_queue_shooter(-1)).grid(row=1, column=0, sticky="ew", padx=(0, 4), pady=2)
-        ttk.Button(controls, text="Down", command=lambda: self.move_tunnel_queue_shooter(1)).grid(row=1, column=1, sticky="ew", padx=4, pady=2)
+        ttk.Button(controls, text="Add", command=self.add_tunnel_queue_shooter).grid(row=0, column=0, sticky="ew", pady=2)
+        ttk.Button(controls, text="Delete", command=self.remove_tunnel_queue_shooter).grid(row=1, column=0, sticky="ew", pady=2)
+        ttk.Button(controls, text="Up", command=lambda: self.move_tunnel_queue_shooter(-1)).grid(row=2, column=0, sticky="ew", pady=2)
+        ttk.Button(controls, text="Down", command=lambda: self.move_tunnel_queue_shooter(1)).grid(row=3, column=0, sticky="ew", pady=2)
         controls.columnconfigure(0, weight=1)
-        controls.columnconfigure(1, weight=1)
 
     def _build_cell_editor(self, parent):
         frame = ttk.LabelFrame(parent, text="Cell Tool", padding=8)

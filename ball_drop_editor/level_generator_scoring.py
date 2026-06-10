@@ -4,7 +4,9 @@ import copy
 from typing import Any, Dict, List, Optional
 
 from .level_generator_analysis import _resample_values, structural_difference
-from .level_generator_models import CandidateResult
+from .level_generator_gates import analyze_gate_layout
+from .level_generator_models import CandidateResult, GateLayoutMetrics
+from .level_generator_templates import count_generator_devices
 from .level_tester_score import SolverScoreResult
 
 
@@ -56,6 +58,7 @@ class DifficultyCurveScoringMixin:
         return sum(abs(left - right) for left, right in zip(sampled, targets)) / max(1, len(targets))
 
     def generate_best(self, progress=None, cancel_check=None) -> CandidateResult:
+        best_quality: Optional[CandidateResult] = None
         best_pass: Optional[CandidateResult] = None
         best_any: Optional[CandidateResult] = None
         attempts = max(1, self.config.candidate_attempts)
@@ -65,19 +68,28 @@ class DifficultyCurveScoringMixin:
             level = self._build_candidate(attempt)
             notes = list(self._candidate_notes)
             structural_difference = self._reference_structural_difference(level)
+            generated_metrics = getattr(self, "_gate_layout_metrics", None)
+            if generated_metrics is None:
+                generated_metrics = analyze_gate_layout(
+                    level.get("gateSystem", {}).get("gates", []) or []
+                )
+            layout_metrics = copy.deepcopy(generated_metrics)
             errors, warnings = self.validator.validate(level)
             if errors:
                 score = SolverScoreResult(status="INVALID", message="Validator errors.")
                 candidate = CandidateResult(
-                    level,
-                    score,
-                    errors,
-                    warnings,
-                    9999.0,
-                    attempt,
-                    notes,
-                    structural_difference,
-                    9999.0 if self.config.reference_curve_targets else 0.0,
+                    level=level,
+                    score=score,
+                    errors=errors,
+                    warnings=warnings,
+                    target_error=9999.0,
+                    attempt=attempt,
+                    notes=notes,
+                    structural_difference=structural_difference,
+                    reference_curve_error=9999.0 if self.config.reference_curve_targets else 0.0,
+                    quality_passed=False,
+                    quality_reasons=["Validator rejected the candidate."],
+                    layout_metrics=layout_metrics,
                 )
             else:
                 score = self.solver.score_level(
@@ -107,30 +119,39 @@ class DifficultyCurveScoringMixin:
                         score = copy.deepcopy(score)
                         score.status = "FAIL"
                         score.message = "Reference difference below threshold."
+                quality_passed, quality_reasons = self._quality_status(score, layout_metrics, level)
                 candidate = CandidateResult(
-                    level,
-                    score,
-                    errors,
-                    warnings,
-                    target_error,
-                    attempt,
-                    candidate_notes,
-                    structural_difference,
-                    reference_curve_error,
+                    level=level,
+                    score=score,
+                    errors=errors,
+                    warnings=warnings,
+                    target_error=target_error,
+                    attempt=attempt,
+                    notes=candidate_notes,
+                    structural_difference=structural_difference,
+                    reference_curve_error=reference_curve_error,
+                    quality_passed=quality_passed,
+                    quality_reasons=quality_reasons,
+                    layout_metrics=layout_metrics,
                 )
 
-            if best_any is None or candidate.target_error < best_any.target_error:
+            if best_any is None or self._candidate_rank(candidate) < self._candidate_rank(best_any):
                 best_any = candidate
             pass_meets_reference = (
                 not self.config.reference_level
                 or candidate.structural_difference >= max(0.0, float(self.config.reference_min_difference))
             )
             if candidate.score.status == "PASS" and pass_meets_reference:
-                if best_pass is None or candidate.target_error < best_pass.target_error:
+                if best_pass is None or self._candidate_rank(candidate) < self._candidate_rank(best_pass):
                     best_pass = candidate
+                if candidate.quality_passed:
+                    if best_quality is None or self._candidate_rank(candidate) < self._candidate_rank(best_quality):
+                        best_quality = candidate
             if progress:
-                progress(attempt, attempts, candidate, best_pass or best_any)
+                progress(attempt, attempts, candidate, best_quality or best_pass or best_any)
 
+        if best_quality is not None:
+            return best_quality
         if best_pass is not None:
             return best_pass
         if best_any is not None:
@@ -141,9 +162,60 @@ class DifficultyCurveScoringMixin:
         if score.status != "PASS":
             return 9999.0
         if not score.phase_scores:
-            return abs(score.overall_score - self._overall_target())
-        return sum(abs(phase.delta) for phase in score.phase_scores) / max(1, len(score.phase_scores))
+            delta = score.overall_score - self._overall_target()
+            return abs(delta) * (2.0 if delta < 0 else 1.0)
+        penalties = [
+            abs(phase.delta) * (2.0 if phase.delta < 0 else 1.0)
+            for phase in score.phase_scores
+        ]
+        return sum(penalties) / max(1, len(penalties))
 
     def _overall_target(self) -> float:
         phases = self.config.normalized_phases()
         return sum(phase.target_score for phase in phases) / max(1, len(phases))
+
+    def _quality_status(
+        self,
+        score: SolverScoreResult,
+        layout_metrics: GateLayoutMetrics,
+        level: Dict[str, Any],
+    ) -> tuple[bool, List[str]]:
+        reasons: List[str] = []
+        if score.status != "PASS":
+            reasons.append(f"Solver status is {score.status}, not PASS.")
+        if layout_metrics.avoidable_repeats > 0:
+            reasons.append(
+                f"Tray layout still has {layout_metrics.avoidable_repeats} improving color swap(s)."
+            )
+
+        overall_deficit = self._overall_target() - score.overall_score
+        if overall_deficit > max(0.0, float(self.config.overall_tolerance)):
+            reasons.append(
+                f"Overall score is {overall_deficit:.1f} below target "
+                f"(tolerance {self.config.overall_tolerance:.1f})."
+            )
+        for phase in score.phase_scores:
+            deficit = phase.target_score - phase.actual_score
+            if deficit > max(0.0, float(self.config.phase_tolerance)):
+                reasons.append(
+                    f"Phase '{phase.name}' is {deficit:.1f} below target "
+                    f"(tolerance {self.config.phase_tolerance:.1f})."
+                )
+        if self.config.exact_device_counts:
+            actual_counts = count_generator_devices(level)
+            for device, expected in self.config.exact_device_counts.items():
+                actual = actual_counts.get(device, 0)
+                if actual != expected:
+                    reasons.append(
+                        f"{device} count is {actual}, expected exactly {expected} from the source level."
+                    )
+        return not reasons, reasons
+
+    def _candidate_rank(self, candidate: CandidateResult) -> tuple[Any, ...]:
+        return (
+            0 if candidate.quality_passed else 1,
+            0 if candidate.score.status == "PASS" else 1,
+            float(candidate.target_error),
+            *candidate.layout_metrics.rank(),
+            int(candidate.attempt),
+        )

@@ -65,6 +65,20 @@ class LevelGeneratorWindowUiMixin:
         ttk.Button(source, text="Use Current", command=self.use_current_as_template, width=11).grid(row=0, column=3, padx=2)
         ttk.Entry(source, textvariable=self.reference_file_var).grid(row=2, column=1, sticky="ew", padx=(8, 4))
         ttk.Button(source, text="Load Reference", command=self.load_reference_file, width=14).grid(row=2, column=2, columnspan=2, sticky="w", padx=2)
+        self.learn_source_pressure_check = ttk.Checkbutton(
+            source,
+            text="Learn Pressure / Devices",
+            variable=self.learn_source_pressure_var,
+            command=self._source_option_changed,
+        )
+        self.learn_source_pressure_check.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.keep_source_counts_check = ttk.Checkbutton(
+            source,
+            text="Keep Exact Device Counts",
+            variable=self.keep_source_counts_var,
+            command=self._source_option_changed,
+        )
+        self.keep_source_counts_check.grid(row=3, column=2, columnspan=2, sticky="w", pady=(4, 0))
 
         preset = ttk.LabelFrame(frame, text="Preset Generation", padding=6)
         preset.grid(row=1, column=0, sticky="ew", padx=(0, 4), pady=(0, 6))
@@ -120,10 +134,11 @@ class LevelGeneratorWindowUiMixin:
         ttk.Checkbutton(devices, text="Wall", variable=self.allow_wall_var).grid(row=0, column=0, sticky="w", padx=(0, 12))
         ttk.Checkbutton(devices, text="Tunnel", variable=self.allow_tunnel_var).grid(row=0, column=1, sticky="w", padx=(0, 12))
         ttk.Checkbutton(devices, text="IceBlock", variable=self.allow_iceblock_var).grid(row=0, column=2, sticky="w", padx=(0, 12))
-        ttk.Checkbutton(devices, text="Ice Tray", variable=self.allow_icetray_var).grid(row=0, column=3, sticky="w", padx=(0, 12))
-        ttk.Checkbutton(devices, text="Special", variable=self.allow_special_var).grid(row=1, column=0, sticky="w", padx=(0, 12), pady=(4, 0))
-        ttk.Checkbutton(devices, text="Connected Group", variable=self.allow_connected_group_var).grid(row=1, column=1, sticky="w", padx=(0, 12), pady=(4, 0))
-        ttk.Checkbutton(devices, text="LockBar", variable=self.allow_lockbar_var).grid(row=1, column=2, sticky="w", padx=(0, 12), pady=(4, 0))
+        ttk.Checkbutton(devices, text="Ice Shooter", variable=self.allow_iceshooter_var).grid(row=0, column=3, sticky="w", padx=(0, 12))
+        ttk.Checkbutton(devices, text="Ice Tray", variable=self.allow_icetray_var).grid(row=1, column=0, sticky="w", padx=(0, 12), pady=(4, 0))
+        ttk.Checkbutton(devices, text="Special", variable=self.allow_special_var).grid(row=1, column=1, sticky="w", padx=(0, 12), pady=(4, 0))
+        ttk.Checkbutton(devices, text="Connected Group", variable=self.allow_connected_group_var).grid(row=1, column=2, sticky="w", padx=(0, 12), pady=(4, 0))
+        ttk.Checkbutton(devices, text="LockBar", variable=self.allow_lockbar_var).grid(row=1, column=3, sticky="w", padx=(0, 12), pady=(4, 0))
         ttk.Label(devices, text="Tunnel Queue Min").grid(row=2, column=0, sticky="w", pady=(4, 0))
         ttk.Entry(devices, textvariable=self.tunnel_queue_min_var, width=7).grid(row=2, column=1, sticky="w", pady=(4, 0))
         ttk.Label(devices, text="Max").grid(row=2, column=2, sticky="w", pady=(4, 0))
@@ -286,8 +301,13 @@ class LevelGeneratorWindowUiMixin:
 
     def _sync_source_state(self) -> None:
         preset_state = "normal" if self.mode_var.get() == "Preset" else "disabled"
+        source_option_state = "disabled" if self.mode_var.get() == "Preset" else "normal"
         for entry in getattr(self, "preset_entries", []):
             entry.configure(state=preset_state)
+        if hasattr(self, "learn_source_pressure_check"):
+            self.learn_source_pressure_check.configure(state=source_option_state)
+        if hasattr(self, "keep_source_counts_check"):
+            self.keep_source_counts_check.configure(state=source_option_state)
         if not hasattr(self, "log_text"):
             return
         if self.mode_var.get() == "Preset":

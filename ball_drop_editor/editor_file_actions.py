@@ -245,12 +245,15 @@ class EditorFileActionsMixin:
         self._load_level_file(path)
 
     def save_json(self):
+        level_id = self.selected_file_level_id()
+        self.level_var.set(str(level_id))
+        self.file_level_var.set(str(level_id))
         self.sync_basic_fields()
         self.merge_detected_mechanics()
         normalize_runtime_level(self.level)
         folder = self.level_folder or DEFAULT_LEVEL_SAVE_DIR
         os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, self.default_level_filename())
+        path = os.path.join(folder, f"{level_id}.json")
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.level, f, ensure_ascii=False, indent=2)
@@ -263,7 +266,7 @@ class EditorFileActionsMixin:
             messagebox.showerror("Save Error", str(exc))
 
     def default_level_filename(self) -> str:
-        level_id = self.current_level_id()
+        level_id = self.selected_file_level_id()
         return f"{level_id}.json"
 
     def save_json_as(self):
@@ -272,6 +275,7 @@ class EditorFileActionsMixin:
             os.makedirs(initial_dir, exist_ok=True)
         path = filedialog.asksaveasfilename(
             initialdir=initial_dir,
+            initialfile=self.default_level_filename(),
             defaultextension=".json",
             filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
         )

@@ -12,6 +12,7 @@ from .level_generator import (
     CandidateResult,
     DifficultyCurveGenerator,
     GeneratorConfig,
+    count_generator_devices,
     export_level,
     build_config_from_template,
     load_template_folder,
@@ -60,6 +61,9 @@ class LevelGeneratorWindowActionsMixin:
             messagebox.showwarning("Export", f"File already exists and will not be overwritten:\n{path}")
             return
         if self.preview_candidate and self.preview_candidate.score.status == "PASS":
+            if not self._confirm_candidate_quality(self.preview_candidate, "export"):
+                self.status_var.set("Export cancelled.")
+                return
             if self._export_candidate(self.preview_candidate, path, level_id):
                 self.status_var.set(f"Exported level {level_id}.")
                 self._log(f"Exported PASS preview: {path}")
@@ -87,6 +91,9 @@ class LevelGeneratorWindowActionsMixin:
         if self._busy():
             return
         if self.preview_candidate and self.preview_candidate.score.status == "PASS":
+            if not self._confirm_candidate_quality(self.preview_candidate, "apply"):
+                self.status_var.set("Apply cancelled.")
+                return
             self._apply_candidate_to_editor(self.preview_candidate)
             return
         if not self._ensure_active_phase():
@@ -154,10 +161,7 @@ class LevelGeneratorWindowActionsMixin:
         generator = DifficultyCurveGenerator(config)
         try:
             candidate = generator.generate_best(progress=self._progress, cancel_check=self.cancel_event.is_set)
-            if candidate.score.status == "PASS" and self._export_candidate(candidate, path, level_id):
-                self.result_queue.put(("single_done", True, f"Exported PASS: {path}", candidate))
-            else:
-                self.result_queue.put(("single_done", False, f"Failed level {level_id}: {candidate.score.status}", candidate))
+            self.result_queue.put(("single_candidate", candidate, path, level_id))
         except Exception as exc:
             self.result_queue.put(("error", str(exc)))
 
@@ -189,12 +193,21 @@ class LevelGeneratorWindowActionsMixin:
             generator = DifficultyCurveGenerator(config)
             try:
                 candidate = generator.generate_best(progress=self._progress, cancel_check=self.cancel_event.is_set)
-                if candidate.score.status == "PASS" and export_level(path, candidate.level, overwrite=False):
+                if (
+                    candidate.score.status == "PASS"
+                    and candidate.quality_passed
+                    and export_level(path, candidate.level, overwrite=False)
+                ):
                     exported += 1
                     self.result_queue.put(("log", f"Exported PASS: {path}"))
+                elif candidate.score.status == "PASS":
+                    skipped += 1
+                    reason = "; ".join(candidate.quality_reasons) or "Difficulty target not reached."
+                    self.result_queue.put(("log", f"Skipped level {level_id}: {reason}"))
                 else:
                     failed += 1
-                    self.result_queue.put(("log", f"Failed level {level_id}: {candidate.score.status}"))
+                    reason = "; ".join(candidate.quality_reasons) or candidate.score.status
+                    self.result_queue.put(("log", f"Failed level {level_id}: {reason}"))
                 for note in candidate.notes:
                     self.result_queue.put(("log", f"NOTE: {note}"))
             except Exception as exc:
@@ -215,10 +228,28 @@ class LevelGeneratorWindowActionsMixin:
                     self.preview_candidate = candidate
                     self._render_candidate(candidate)
                     if candidate.score.status == "PASS":
-                        self._apply_candidate_to_editor(candidate)
+                        if self._confirm_candidate_quality(candidate, "apply"):
+                            self._apply_candidate_to_editor(candidate)
+                        else:
+                            self.status_var.set("Apply cancelled.")
                     else:
                         self.status_var.set(f"Apply failed: {candidate.score.status}")
                         self._log(self.status_var.get())
+                elif kind == "single_candidate":
+                    _, candidate, path, level_id = item
+                    self.preview_candidate = candidate
+                    self._render_candidate(candidate)
+                    if candidate.score.status != "PASS":
+                        self.status_var.set(f"Single export failed: {candidate.score.status}")
+                        self._log(self.status_var.get())
+                    elif not self._confirm_candidate_quality(candidate, "export"):
+                        self.status_var.set("Export cancelled.")
+                    elif self._export_candidate(candidate, path, level_id):
+                        self.status_var.set(f"Exported level {level_id}.")
+                        self._log(f"Exported PASS: {path}")
+                    else:
+                        self.status_var.set("Export skipped.")
+                        self._log(f"Skip existing: {path}")
                 elif kind == "single_done":
                     _, exported, message, candidate = item
                     if candidate is not None:
@@ -240,6 +271,17 @@ class LevelGeneratorWindowActionsMixin:
             pass
         self.after(100, self._poll_results)
 
+    def _confirm_candidate_quality(self, candidate: CandidateResult, action: str) -> bool:
+        if candidate.quality_passed:
+            return True
+        reasons = "\n".join(f"- {reason}" for reason in candidate.quality_reasons)
+        return messagebox.askyesno(
+            "Difficulty target not reached",
+            f"This candidate passed the solver but did not reach the difficulty target:\n\n"
+            f"{reasons or '- Unknown quality issue.'}\n\n"
+            f"Continue with {action}?",
+        )
+
     def _build_config(self) -> GeneratorConfig:
         phases = self._read_phases()
         capacity = max(1, safe_int(str(self.capacity_var.get()), 9)) if self.override_capacity_var.get() else 9
@@ -251,6 +293,8 @@ class LevelGeneratorWindowActionsMixin:
             allowed_devices.append("Tunnel")
         if self.allow_iceblock_var.get():
             allowed_devices.append("IceBlock")
+        if self.allow_iceshooter_var.get():
+            allowed_devices.append("IceShooter")
         if self.allow_icetray_var.get():
             allowed_devices.append("IceTray")
         if self.allow_special_var.get():
@@ -286,6 +330,8 @@ class LevelGeneratorWindowActionsMixin:
             candidate_attempts=max(1, safe_int(str(self.attempts_var.get()), 30)),
             phases=phases,
             seed=self._seed_value(),
+            overall_tolerance=8.0,
+            phase_tolerance=12.0,
         )
         if self.mode_var.get() == "Reference Level File":
             if self.reference_level:
@@ -293,6 +339,8 @@ class LevelGeneratorWindowActionsMixin:
                 config.reference_curve_targets = list(self.reference_curve_targets)
                 reference_difference = safe_float(str(self.reference_difference_var.get()), 30.0)
                 config.reference_min_difference = min(100.0, max(0.0, reference_difference)) / 100.0
+                if self.keep_source_counts_var.get():
+                    config.exact_device_counts = count_generator_devices(self.reference_level)
             config.level_id = max(1, safe_int(str(self.level_var.get()), 1))
             config.level_name = f"Level_{config.level_id}"
         elif self.mode_var.get() == "Template Folder":
@@ -308,6 +356,8 @@ class LevelGeneratorWindowActionsMixin:
             config.color_mode = self.color_mode_var.get()
             config.manual_colors = self._manual_colors()
             config.allowed_devices = allowed_devices
+            if selected and self.keep_source_counts_var.get():
+                config.exact_device_counts = count_generator_devices(selected)
             if not self.override_capacity_var.get():
                 config.shooter_capacity = max(1, config.shooter_capacity)
                 config.tray_unit = 3

@@ -6,7 +6,13 @@ from tkinter import filedialog, messagebox
 from typing import Any, Dict
 
 from .level_data import normalize_runtime_level
-from .level_generator import build_config_from_template, load_template_folder, select_template_for_config
+from .level_generator import (
+    build_config_from_template,
+    count_generator_devices,
+    infer_template_pressures,
+    load_template_folder,
+    select_template_for_config,
+)
 from .level_tester_score import SolverScoreAdapter
 from .utils import safe_float
 from .validator import LevelValidator
@@ -63,14 +69,17 @@ class LevelGeneratorWindowSourceMixin:
         self.reference_score = score
         if score.status == "PASS" and score.per_click_scores:
             self.reference_curve_targets = [item.score for item in score.per_click_scores]
-            phase_rows = self._reference_phase_rows(score)
-            self._replace_phase_rows(phase_rows)
+            phase_rows = []
+            if self.learn_source_pressure_var.get():
+                phase_rows = self._reference_phase_rows(score)
+                self._replace_phase_rows(phase_rows)
             self._log(
                 f"Loaded reference: {path}. Source solve=PASS, colors={self.color_count_var.get()}, "
-                f"clicks={len(score.per_click_scores)}, phases={len(phase_rows)}."
+                f"clicks={len(score.per_click_scores)}, learned phases={len(phase_rows)}."
             )
         else:
             self.reference_curve_targets = []
+            self._apply_source_mechanics(level, apply_pressure=True)
             self._log(
                 f"Loaded reference: {path}. Source solve={score.status}; curve cloning requires a PASS source."
             )
@@ -94,6 +103,7 @@ class LevelGeneratorWindowSourceMixin:
             var.set(color in colors)
         self.capacity_var.set(config.shooter_capacity)
         self.tray_unit_var.set(self._estimate_tray_unit(level))
+        self._apply_source_mechanics(level, apply_pressure=False)
 
     def choose_template_folder(self) -> None:
         folder = filedialog.askdirectory(title="Choose template folder")
@@ -128,6 +138,8 @@ class LevelGeneratorWindowSourceMixin:
         self.color_count_var.set(config.color_count)
         self.capacity_var.set(config.shooter_capacity)
         self._load_default_phases()
+        self._apply_source_mechanics(self.template_level, apply_pressure=True)
+        self._sync_source_state()
 
     def choose_export_folder(self) -> None:
         folder = filedialog.askdirectory(title="Choose export folder")
@@ -144,3 +156,86 @@ class LevelGeneratorWindowSourceMixin:
             "Load a reference level that solver can PASS before generating in Reference Level File mode.",
         )
         return False
+
+    def _source_option_changed(self) -> None:
+        level = self._current_source_level()
+        if level:
+            self._apply_source_mechanics(
+                level,
+                apply_pressure=self.learn_source_pressure_var.get(),
+            )
+
+    def _current_source_level(self) -> Dict[str, Any]:
+        if self.mode_var.get() == "Reference Level File":
+            return self.reference_level or {}
+        if self.mode_var.get() == "Template Folder":
+            return self.template_level or {}
+        return {}
+
+    def _apply_source_mechanics(
+        self,
+        level: Dict[str, Any],
+        apply_pressure: bool,
+    ) -> None:
+        counts = count_generator_devices(level)
+        self.source_device_counts = counts
+        if self.learn_source_pressure_var.get() or self.keep_source_counts_var.get():
+            self.allow_wall_var.set(counts["Wall"] > 0)
+            self.allow_tunnel_var.set(counts["Tunnel"] > 0)
+            self.allow_iceblock_var.set(counts["IceBlock"] > 0)
+            self.allow_iceshooter_var.set(counts["IceShooter"] > 0)
+            self.allow_icetray_var.set(counts["IceTray"] > 0)
+            self.allow_special_var.set(counts["Special"] > 0)
+            self.allow_connected_group_var.set(counts["ConnectedGroup"] > 0)
+            self.allow_lockbar_var.set(counts["LockBar"] > 0)
+
+        if apply_pressure and self.learn_source_pressure_var.get():
+            pressures = infer_template_pressures(level)
+            self._apply_pressure_values_to_phases(pressures)
+            count_summary = ", ".join(
+                f"{key}={value}"
+                for key, value in counts.items()
+                if value > 0
+            ) or "none"
+            self._log(
+                "Learned source pressure: "
+                f"Decision={pressures['decision']}, Obstacle={pressures['obstacle']}, "
+                f"Tunnel={pressures['tunnel']}, Unlock={pressures['unlock']}; "
+                f"devices: {count_summary}."
+            )
+        if self.keep_source_counts_var.get():
+            summary = ", ".join(f"{key}={value}" for key, value in counts.items())
+            self._log(f"Exact source device counts enabled: {summary}.")
+
+    def _apply_pressure_values_to_phases(self, pressures: Dict[str, int]) -> None:
+        if not hasattr(self, "phase_tree"):
+            return
+        for item in self.phase_tree.get_children():
+            values = self.phase_tree.item(item, "values")
+            (
+                enabled,
+                name,
+                start,
+                end,
+                target,
+                _decision,
+                conveyor,
+                _unlock,
+                same_color,
+                _tunnel,
+                _obstacle,
+            ) = self._parse_phase_tree_values(values)
+            new_values = self._make_phase_tree_values(
+                enabled,
+                name,
+                start,
+                end,
+                target,
+                pressures["decision"],
+                conveyor,
+                pressures["unlock"],
+                same_color,
+                pressures["tunnel"],
+                pressures["obstacle"],
+            )
+            self.phase_tree.item(item, values=new_values, tags=() if enabled else ("disabled",))

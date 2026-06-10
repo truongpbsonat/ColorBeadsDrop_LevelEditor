@@ -24,6 +24,9 @@ class DifficultyMetrics:
     unlock_depth: float = 0.0
     tunnel_pressure: float = 0.0
     obstacle_pressure: float = 0.0
+    tray_switching_pressure: float = 0.0
+    consecutive_tray_relief: float = 0.0
+    parallel_same_color_relief: float = 0.0
 
 
 @dataclass
@@ -142,6 +145,7 @@ class SolverScoreAdapter:
         same_color = sum(1 for color in active_colors if color == action.color)
         moving = len(state.hopper) + sum(1 for slot in state.conveyor if slot is not None)
         unlock_depth = action.row / max(1, state.rows - 1)
+        tray_switching, tray_relief, parallel_relief = self._tray_layout_pressure(state)
         return DifficultyMetrics(
             active_choices=len(active),
             decoys=decoys,
@@ -150,7 +154,45 @@ class SolverScoreAdapter:
             unlock_depth=unlock_depth,
             tunnel_pressure=self._tunnel_pressure(state, action.row, action.column),
             obstacle_pressure=self._obstacle_pressure(state, action.row, action.column),
+            tray_switching_pressure=tray_switching,
+            consecutive_tray_relief=tray_relief,
+            parallel_same_color_relief=parallel_relief,
         )
+
+    def _tray_layout_pressure(self, state: GameState) -> Tuple[float, float, float]:
+        front_colors: List[str] = []
+        switch_count = 0
+        comparable = 0
+        for gate in state.gates:
+            if not gate or not gate[0].layers:
+                continue
+            front_color = str(gate[0].layers[0][0])
+            front_colors.append(front_color)
+            next_color = self._next_gate_color(gate)
+            if next_color is None:
+                continue
+            comparable += 1
+            if next_color != front_color:
+                switch_count += 1
+
+        switch_rate = switch_count / max(1, comparable)
+        consecutive_relief = (comparable - switch_count) / max(1, comparable)
+        if len(front_colors) <= 1:
+            front_diversity = 0.0
+            parallel_relief = 0.0
+        else:
+            front_diversity = (len(set(front_colors)) - 1) / (len(front_colors) - 1)
+            parallel_relief = (len(front_colors) - len(set(front_colors))) / (len(front_colors) - 1)
+        switching_pressure = (switch_rate + front_diversity) / 2.0
+        return switching_pressure, consecutive_relief, parallel_relief
+
+    def _next_gate_color(self, gate) -> Optional[str]:
+        front = gate[0]
+        if len(front.layers) > 1:
+            return str(front.layers[1][0])
+        if len(gate) > 1 and gate[1].layers:
+            return str(gate[1].layers[0][0])
+        return None
 
     def _tunnel_pressure(self, state: GameState, row: int, col: int) -> float:
         pressure = 0.0
@@ -166,17 +208,40 @@ class SolverScoreAdapter:
 
     def _obstacle_pressure(self, state: GameState, row: int, col: int) -> float:
         pressure = 0.0
+        remaining_balls = sum(
+            int(layer[1])
+            for gate in state.gates
+            for tray in gate
+            for layer in tray.layers
+        )
         if state.obstacle_blocked:
             for rr, cc in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
                 if 0 <= rr < state.rows and 0 <= cc < state.cols and state.obstacle_blocked[rr][cc]:
                     pressure += 0.35
         for index, cell in enumerate(state.cells):
-            if cell.type != "Shooter" or not cell.shooter or cell.shooter.ice_hp <= 0:
-                continue
             rr, cc = divmod(index, state.cols)
-            distance = abs(rr - row) + abs(cc - col)
-            if distance <= 2:
-                pressure += 0.25
+            shooters = []
+            if cell.type == "Shooter" and cell.shooter:
+                shooters = [cell.shooter]
+            elif cell.type == "Tunnel":
+                shooters = cell.queue
+            for shooter in shooters:
+                if shooter.ice_hp <= 0:
+                    continue
+                delay = min(1.0, shooter.ice_hp / max(1, remaining_balls))
+                distance = abs(rr - row) + abs(cc - col)
+                proximity = 1.0 if distance <= 2 else 0.4
+                pressure += (0.12 + delay * 0.38) * proximity
+        for ice_block in state.ice_blocks:
+            if ice_block.hp <= 0:
+                continue
+            delay = min(1.0, ice_block.hp / max(1, remaining_balls))
+            distance = min(
+                (abs(rr - row) + abs(cc - col) for rr, cc in ice_block.cells),
+                default=state.rows + state.cols,
+            )
+            proximity = 1.0 if distance <= 2 else 0.4
+            pressure += (0.12 + delay * 0.38) * proximity
         front_trays = [
             (gate_index, gate[0])
             for gate_index, gate in enumerate(state.gates)
@@ -196,14 +261,18 @@ class SolverScoreAdapter:
 
     def _metrics_score(self, metrics: DifficultyMetrics) -> float:
         score = 0.0
-        score += max(0, metrics.active_choices - 1) * 7.0
-        score += metrics.decoys * 6.0
-        score += metrics.same_color_route_traps * 11.0
-        score += metrics.conveyor_pressure * 18.0
-        score += metrics.unlock_depth * 12.0
-        score += metrics.tunnel_pressure * 12.0
-        score += metrics.obstacle_pressure * 14.0
-        return min(100.0, score)
+        decoy_ratio = metrics.decoys / max(1, metrics.active_choices)
+        score += max(0, metrics.active_choices - 1) * 5.0
+        score += decoy_ratio * 20.0
+        score += metrics.same_color_route_traps * 8.0
+        score += metrics.conveyor_pressure * 20.0
+        score += metrics.unlock_depth * 10.0
+        score += metrics.tunnel_pressure * 8.0
+        score += metrics.obstacle_pressure * 10.0
+        score += metrics.tray_switching_pressure * 18.0
+        score -= metrics.consecutive_tray_relief * 20.0
+        score -= metrics.parallel_same_color_relief * 10.0
+        return min(100.0, max(0.0, score))
 
     def _score_phases(
         self,
@@ -243,6 +312,15 @@ class SolverScoreAdapter:
             unlock_depth=sum(item.metrics.unlock_depth for item in per_click) / count,
             tunnel_pressure=sum(item.metrics.tunnel_pressure for item in per_click) / count,
             obstacle_pressure=sum(item.metrics.obstacle_pressure for item in per_click) / count,
+            tray_switching_pressure=sum(
+                item.metrics.tray_switching_pressure for item in per_click
+            ) / count,
+            consecutive_tray_relief=sum(
+                item.metrics.consecutive_tray_relief for item in per_click
+            ) / count,
+            parallel_same_color_relief=sum(
+                item.metrics.parallel_same_color_relief for item in per_click
+            ) / count,
         )
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import Counter
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .color_utils import SELECTABLE_BALL_COLORS
@@ -15,6 +16,7 @@ from .level_data import (
     normalize_runtime_level,
 )
 from .level_generator_analysis import _rect_shape_difference
+from .level_generator_gates import build_tray_chunks, schedule_tray_chunks
 from .level_generator_models import DEFAULT_GENERATOR_COLORS, GeneratorPhase
 from .utils import short_id
 
@@ -26,8 +28,8 @@ class DifficultyCurveCandidateMixin:
         cols = max(1, int(self.config.cols))
         rows, cols = self._reference_grid_size(rows, cols, attempt)
         requested_shooter_count = max(1, int(self.config.shooter_count))
-        requested_wall_count = max(0, int(self.config.wall_count))
-        if "Wall" not in self.config.allowed_devices:
+        requested_wall_count = self._device_target("Wall", max(0, int(self.config.wall_count)))
+        if not self._device_enabled("Wall"):
             requested_wall_count = 0
         rows, cols = self._effective_grid_size(rows, cols, requested_shooter_count, requested_wall_count)
         total_cells = rows * cols
@@ -104,11 +106,13 @@ class DifficultyCurveCandidateMixin:
 
         self._place_walls(level, wall_positions)
         solution_colors.extend(self._fill_empty_cells(level))
-        self._place_obstacles(level, shooter_positions)
         self._place_special_shooters(level)
         self._place_connected_groups(level)
         solution_colors = self._solution_colors_from_grid(level)
         self._build_gates(level, solution_colors)
+        self._apply_phase_color_layout(level)
+        self._place_obstacles(level)
+        self._place_ice_shooters(level)
         self._place_ice_trays(level)
         normalize_runtime_level(level)
         level["mechanics"] = detect_mechanics(level)
@@ -194,7 +198,18 @@ class DifficultyCurveCandidateMixin:
         if wall_count <= 0:
             return set()
         candidates = [(row, col) for row in range(rows) for col in range(cols)]
-        self.rng.shuffle(candidates)
+        unlock_weight = self._average_phase_weight("unlock_maze")
+        if unlock_weight >= 1.0 and rows >= 3:
+            center = (rows - 1) / 2.0
+            candidates.sort(
+                key=lambda position: (
+                    1 if position[0] in {0, rows - 1} else 0,
+                    abs(position[0] - center),
+                    self.rng.random(),
+                )
+            )
+        else:
+            self.rng.shuffle(candidates)
         wall_positions: set[Tuple[int, int]] = set()
         for row, col in candidates:
             if len(wall_positions) >= wall_count:
@@ -202,6 +217,8 @@ class DifficultyCurveCandidateMixin:
             candidate = set(wall_positions)
             candidate.add((row, col))
             if self._has_full_edge_wall(candidate, rows, cols):
+                continue
+            if not self._non_wall_cells_reach_top(candidate, rows, cols):
                 continue
             wall_positions = candidate
         return wall_positions
@@ -214,6 +231,33 @@ class DifficultyCurveCandidateMixin:
         left_full = all((row, 0) in wall_positions for row in range(rows))
         right_full = all((row, cols - 1) in wall_positions for row in range(rows))
         return top_full or bottom_full or left_full or right_full
+
+    def _non_wall_cells_reach_top(
+        self,
+        wall_positions: set[Tuple[int, int]],
+        rows: int,
+        cols: int,
+    ) -> bool:
+        non_walls = {
+            (row, col)
+            for row in range(rows)
+            for col in range(cols)
+            if (row, col) not in wall_positions
+        }
+        frontier = [position for position in non_walls if position[0] == 0]
+        visited = set(frontier)
+        while frontier:
+            row, col = frontier.pop()
+            for neighbor in (
+                (row - 1, col),
+                (row + 1, col),
+                (row, col - 1),
+                (row, col + 1),
+            ):
+                if neighbor in non_walls and neighbor not in visited:
+                    visited.add(neighbor)
+                    frontier.append(neighbor)
+        return visited == non_walls
 
     def _ordered_non_wall_positions(
         self,
@@ -263,27 +307,39 @@ class DifficultyCurveCandidateMixin:
     def _place_obstacles(
         self,
         level: Dict[str, Any],
-        shooter_positions: Sequence[Tuple[int, int]],
     ) -> None:
-        allow_iceblock = "IceBlock" in self.config.allowed_devices
-        allow_lockbar = "LockBar" in self.config.allowed_devices
+        allow_iceblock = self._device_enabled("IceBlock")
+        allow_lockbar = self._device_enabled("LockBar")
         if not allow_iceblock and not allow_lockbar:
             return
         phases = self.config.normalized_phases()
         total_intensity = sum(max(0, int(phase.obstacle_pressure)) for phase in phases)
-        if total_intensity <= 0:
+        iceblock_target = self._device_target("IceBlock", total_intensity)
+        lockbar_target = self._device_target(
+            "LockBar",
+            max(1, total_intensity // 2) if total_intensity > 0 else 0,
+        )
+        if iceblock_target <= 0 and lockbar_target <= 0:
             return
         obstacles = level.setdefault("grid", {}).setdefault("obstacles", [])
-        if allow_iceblock:
-            max_obstacles = min(len(shooter_positions), max(1, total_intensity))
-            late_positions = list(shooter_positions[len(shooter_positions) // 3 :])
+        if allow_iceblock and iceblock_target > 0:
+            protected_ids = self._protected_initial_shooter_ids(level)
+            available_positions = [
+                (row, col)
+                for row, col, shooter in self._grid_shooter_entries(level)
+                if id(shooter) not in protected_ids
+            ]
+            max_obstacles = min(len(available_positions), iceblock_target)
+            late_positions = list(available_positions[len(available_positions) // 3 :])
+            if len(late_positions) < max_obstacles:
+                late_positions = list(available_positions)
             self.rng.shuffle(late_positions)
             for index, (row, col) in enumerate(late_positions[:max_obstacles], start=1):
                 obstacles.append(
                     {
                         "obstacleId": short_id("ice"),
                         "type": "IceBlock",
-                        "hp": 1 + (index % 3),
+                        "hp": max(1, int(self.config.tray_unit)) * (1 + ((index - 1) % 3)),
                         "shape": {
                             "type": "CustomCells",
                             "origin": {"row": row, "column": col},
@@ -293,21 +349,25 @@ class DifficultyCurveCandidateMixin:
                         },
                     }
                 )
-        if allow_lockbar:
-            self._place_lock_bars(level, total_intensity)
+        if allow_lockbar and lockbar_target > 0:
+            self._place_lock_bars(level, lockbar_target)
 
     def _place_special_shooters(self, level: Dict[str, Any]) -> None:
-        if "Special" not in self.config.allowed_devices:
+        if not self._device_enabled("Special"):
             return
         phases = self.config.normalized_phases()
         total_intensity = sum(max(0, int(phase.obstacle_pressure + phase.decision_trap)) for phase in phases)
-        if total_intensity <= 0:
+        target_count = self._device_target(
+            "Special",
+            max(1, total_intensity // 2) if total_intensity > 0 else 0,
+        )
+        if target_count <= 0:
             return
         shooters = self._grid_shooter_entries(level)
         if not shooters:
             return
         self.rng.shuffle(shooters)
-        count = min(len(shooters), max(1, total_intensity // 2))
+        count = min(len(shooters), target_count)
         placed = 0
         for _row, _col, shooter in shooters[:count]:
             modifiers = [
@@ -321,8 +381,67 @@ class DifficultyCurveCandidateMixin:
         if placed:
             self._note(f"Placed {placed} Special shooter modifier(s).")
 
+    def _place_ice_shooters(self, level: Dict[str, Any]) -> None:
+        if not self._device_enabled("IceShooter"):
+            return
+        phases = self.config.normalized_phases()
+        total_intensity = sum(max(0, int(phase.obstacle_pressure)) for phase in phases)
+        target_count = self._device_target(
+            "IceShooter",
+            max(1, total_intensity // 2) if total_intensity > 0 else 0,
+        )
+        if target_count <= 0:
+            return
+
+        records = self._color_records(level)
+        if len(records) <= 1:
+            self._note("Ice Shooter requested, but at least one shooter must remain available.")
+            return
+
+        ice_blocked = self._ice_blocked_positions(level)
+        protected_ids = self._protected_initial_shooter_ids(level, ice_blocked)
+        candidates = [
+            record
+            for record in records
+            if id(record["shooter"]) not in protected_ids
+            and not any(
+                modifier.get("type") == "Ice"
+                for modifier in record["shooter"].get("modifiers", []) or []
+            )
+            and (
+                not record["is_grid_shooter"]
+                or (record["row"], record["column"]) not in ice_blocked
+            )
+        ]
+        self.rng.shuffle(candidates)
+        candidates.sort(key=lambda record: record["unlock_order"], reverse=True)
+        count = min(len(candidates), target_count)
+        max_unlock_order = max((record["unlock_order"] for record in records), default=1.0)
+        hp_values: List[int] = []
+        for index, record in enumerate(candidates[:count], start=1):
+            depth_ratio = record["unlock_order"] / max(1.0, max_unlock_order)
+            hp = self._ice_unlock_hp(level, index, count, depth_ratio)
+            modifiers = [
+                copy.deepcopy(modifier)
+                for modifier in record["shooter"].get("modifiers", []) or []
+                if modifier.get("type") != "Ice"
+            ]
+            modifiers.append({"type": "Ice", "hp": hp})
+            record["shooter"]["modifiers"] = modifiers
+            hp_values.append(hp)
+
+        if hp_values:
+            self._note(
+                f"Placed {len(hp_values)} Ice Shooter modifier(s) with per-ball unlock HP "
+                f"{', '.join(str(value) for value in hp_values)}."
+            )
+        if count < target_count:
+            self._note(
+                f"Ice Shooter requested {target_count}, but only {count} placement(s) kept an initial shooter available."
+            )
+
     def _place_connected_groups(self, level: Dict[str, Any]) -> None:
-        if "ConnectedGroup" not in self.config.allowed_devices:
+        if not self._device_enabled("ConnectedGroup"):
             return
         shooters = self._grid_shooter_entries(level)
         by_pos = {(row, col): shooter for row, col, shooter in shooters}
@@ -335,7 +454,13 @@ class DifficultyCurveCandidateMixin:
         used_ids: set[str] = set()
         groups = level.setdefault("grid", {}).setdefault("shooterGroups", [])
         placed = 0
-        max_groups = max(1, sum(max(0, int(phase.decision_trap)) for phase in self.config.normalized_phases()) // 2)
+        fallback_count = max(
+            1,
+            sum(max(0, int(phase.decision_trap)) for phase in self.config.normalized_phases()) // 2,
+        )
+        if not any(phase.decision_trap > 0 for phase in self.config.normalized_phases()):
+            fallback_count = 0
+        max_groups = self._device_target("ConnectedGroup", fallback_count)
         for first, second in candidates:
             if placed >= max_groups:
                 break
@@ -357,7 +482,7 @@ class DifficultyCurveCandidateMixin:
         else:
             self._note("Connected Group requested, but no adjacent shooter pairs were available.")
 
-    def _place_lock_bars(self, level: Dict[str, Any], total_intensity: int) -> None:
+    def _place_lock_bars(self, level: Dict[str, Any], target_count: int) -> None:
         grid = level.setdefault("grid", {})
         rows = int(grid.get("rows", 0) or 0)
         cols = int(grid.get("columns", 0) or 0)
@@ -383,7 +508,7 @@ class DifficultyCurveCandidateMixin:
                 elif (self._cell_entity(level, head) or {}).get("type") == "Shooter" and (self._cell_entity(level, body) or {}).get("type") == "Shooter":
                     candidates.append((head, direction, [head, wall, body], trigger))
         self.rng.shuffle(candidates)
-        max_lockbars = min(len(candidates), max(1, total_intensity // 2))
+        max_lockbars = min(len(candidates), max(0, target_count))
         placed = 0
         occupied: set[Tuple[int, int]] = set()
         for head, direction, cells, trigger in candidates:
@@ -416,11 +541,12 @@ class DifficultyCurveCandidateMixin:
             self._note("LockBar requested, but no safe wall/head/trigger layout was found.")
 
     def _place_ice_trays(self, level: Dict[str, Any]) -> None:
-        if "IceTray" not in self.config.allowed_devices:
+        if not self._device_enabled("IceTray"):
             return
         phases = self.config.normalized_phases()
         total_intensity = sum(max(0, int(phase.obstacle_pressure)) for phase in phases)
-        if total_intensity <= 0:
+        target_count = self._device_target("IceTray", total_intensity)
+        if target_count <= 0:
             return
 
         gates = level.get("gateSystem", {}).get("gates", []) or []
@@ -450,7 +576,7 @@ class DifficultyCurveCandidateMixin:
             return
 
         self.rng.shuffle(candidates)
-        max_ice_trays = min(len(candidates), max(1, total_intensity))
+        max_ice_trays = min(len(candidates), target_count)
         frozen_by_depth: Dict[int, int] = {}
         placed = 0
         for tray_index, _gate_index, tray in candidates:
@@ -503,6 +629,86 @@ class DifficultyCurveCandidateMixin:
     def _shooter_has_special(self, shooter: Dict[str, Any]) -> bool:
         return any(modifier.get("type") == "Special" for modifier in shooter.get("modifiers", []) or [])
 
+    def _ice_blocked_positions(self, level: Dict[str, Any]) -> set[Tuple[int, int]]:
+        positions: set[Tuple[int, int]] = set()
+        for obstacle in level.get("grid", {}).get("obstacles", []) or []:
+            if obstacle.get("type") != "IceBlock":
+                continue
+            shape = obstacle.get("shape", {}) or {}
+            cells = shape.get("cells", []) or []
+            if cells:
+                positions.update(
+                    (int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0))
+                    for cell in cells
+                )
+                continue
+            origin = shape.get("origin", {}) or {}
+            origin_row = int(origin.get("row", 0) or 0)
+            origin_col = int(origin.get("column", 0) or 0)
+            height = max(1, int(shape.get("height", 1) or 1))
+            width = max(1, int(shape.get("width", 1) or 1))
+            positions.update(
+                (origin_row + row, origin_col + col)
+                for row in range(height)
+                for col in range(width)
+            )
+        return positions
+
+    def _protected_initial_shooter_ids(
+        self,
+        level: Dict[str, Any],
+        blocked_positions: Optional[set[Tuple[int, int]]] = None,
+    ) -> set[int]:
+        blocked = blocked_positions or set()
+        gates = level.get("gateSystem", {}).get("gates", []) or []
+        demand = self._gate_colors_at_depth(gates, 0)
+        protected: set[int] = set()
+        protected_colors: set[str] = set()
+        for record in self._color_records(level):
+            color = str(record["shooter"].get("colorId", "None"))
+            position = (record["row"], record["column"])
+            if (
+                color not in demand
+                or color in protected_colors
+                or not record["is_grid_shooter"]
+                or record["row"] != 0
+                or position in blocked
+            ):
+                continue
+            protected.add(id(record["shooter"]))
+            protected_colors.add(color)
+        return protected
+
+    def _ice_unlock_hp(
+        self,
+        level: Dict[str, Any],
+        index: int,
+        count: int,
+        depth_ratio: float,
+    ) -> int:
+        total_balls = sum(
+            self._effective_shooter_capacity(record["shooter"])
+            for record in self._color_records(level)
+        )
+        tray_unit = max(1, int(self.config.tray_unit))
+        if total_balls <= tray_unit:
+            return tray_unit
+        order_ratio = max(0.0, min(1.0, index / max(1, count + 1)))
+        phase_pressure = (
+            self._average_phase_weight("obstacle_pressure")
+            + self._average_phase_weight("unlock_maze")
+        ) / 6.0
+        unlock_fraction = min(
+            0.45,
+            0.03
+            + order_ratio * 0.20
+            + max(0.0, min(1.0, depth_ratio)) * 0.10
+            + phase_pressure * 0.10,
+        )
+        hp = int(round((total_balls * unlock_fraction) / tray_unit)) * tray_unit
+        max_hp = max(tray_unit, total_balls - tray_unit)
+        return max(tray_unit, min(max_hp, hp))
+
     def _cell_entity(self, level: Dict[str, Any], position: Tuple[int, int]) -> Optional[Dict[str, Any]]:
         return find_cell(level, position[0], position[1]).get("entity")
 
@@ -544,20 +750,38 @@ class DifficultyCurveCandidateMixin:
             )
             guaranteed = guaranteed[:count]
         colors: List[str] = guaranteed[:count]
-        previous = colors[-1] if colors else self.rng.choice(palette)
+        counts = Counter(colors)
+        last_seen = {color: index for index, color in enumerate(colors)}
         for click_index in range(len(colors) + 1, count + 1):
             phase = self._phase_for_click(phases, click_index)
-            repeat_chance = min(0.75, 0.12 + phase.same_color_route * 0.18)
-            switch_pressure = min(0.85, 0.18 + phase.conveyor_pressure * 0.16)
-            if colors and self.rng.random() < repeat_chance:
-                color = previous
-            elif self.rng.random() < switch_pressure:
-                options = [color for color in palette if color != previous] or palette
-                color = self.rng.choice(options)
-            else:
-                color = self.rng.choice(palette)
+            conveyor = self._phase_weight(phase.conveyor_pressure)
+            same_route = self._phase_weight(phase.same_color_route)
+            decision = self._phase_weight(phase.decision_trap)
+            minimum_gap = 1 + conveyor
+            scored: List[Tuple[Tuple[float, ...], str]] = []
+            for color in palette:
+                gap = (click_index - 1) - last_seen.get(color, -len(palette) - minimum_gap)
+                gap_penalty = max(0, minimum_gap - gap)
+                if same_route > 0 and counts[color] > 0:
+                    repeat_preference = abs(gap - (minimum_gap + 1)) / max(1, same_route)
+                else:
+                    repeat_preference = float(counts[color])
+                ambiguity_preference = -float(counts[color]) * (decision / 3.0)
+                scored.append(
+                    (
+                        (
+                            float(gap_penalty),
+                            repeat_preference,
+                            ambiguity_preference,
+                            self.rng.random(),
+                        ),
+                        color,
+                    )
+                )
+            color = min(scored, key=lambda item: item[0])[1]
             colors.append(color)
-            previous = color
+            counts[color] += 1
+            last_seen[color] = click_index - 1
         return colors
 
     def _active_palette(self) -> List[str]:
@@ -579,11 +803,12 @@ class DifficultyCurveCandidateMixin:
         return auto_palette[:requested]
 
     def _choose_tunnel_groups(self, shooter_positions: Sequence[Tuple[int, int]]) -> Dict[int, List[int]]:
-        if "Tunnel" not in self.config.allowed_devices:
+        if not self._device_enabled("Tunnel"):
             return {}
         phases = self.config.normalized_phases()
         total_intensity = sum(max(0, int(phase.tunnel_pressure)) for phase in phases)
-        if total_intensity <= 0:
+        target_count = self._device_target("Tunnel", total_intensity)
+        if target_count <= 0:
             return {}
         by_pos = {position: index for index, position in enumerate(shooter_positions)}
         candidates: List[int] = []
@@ -598,7 +823,7 @@ class DifficultyCurveCandidateMixin:
         groups: Dict[int, List[int]] = {}
         consumed: set[int] = set()
         blocked_outputs: set[int] = set()
-        max_tunnels = min(len(candidates), max(1, total_intensity))
+        max_tunnels = min(len(candidates), target_count)
         by_index = {index: position for index, position in enumerate(shooter_positions)}
         skipped_for_min = 0
         queue_min = max(1, int(self.config.tunnel_queue_min))
@@ -641,6 +866,16 @@ class DifficultyCurveCandidateMixin:
                 self._note("Tunnel pressure requested, but no candidate survived the tunnel placement constraints.")
         return groups
 
+    def _device_enabled(self, device: str) -> bool:
+        if device in self.config.exact_device_counts:
+            return max(0, int(self.config.exact_device_counts[device])) > 0
+        return device in self.config.allowed_devices
+
+    def _device_target(self, device: str, fallback: int) -> int:
+        if device in self.config.exact_device_counts:
+            return max(0, int(self.config.exact_device_counts[device]))
+        return max(0, int(fallback))
+
     def _phase_for_click(self, phases: Sequence[GeneratorPhase], click_index: int) -> GeneratorPhase:
         for phase in phases:
             if phase.start_click <= click_index <= phase.end_click:
@@ -649,19 +884,198 @@ class DifficultyCurveCandidateMixin:
 
     def _build_gates(self, level: Dict[str, Any], solution_colors: Sequence[str]) -> None:
         gate_count = level["gateSystem"]["gateCount"]
-        gates = [{"gateIndex": gate_index, "trayQueue": []} for gate_index in range(gate_count)]
-        tray_unit = max(1, int(self.config.tray_unit))
-        capacity = max(1, int(self.config.shooter_capacity))
-        for click_index, color in enumerate(solution_colors):
-            gate_index = click_index % gate_count
-            remaining = capacity
-            while remaining > 0:
-                required = min(tray_unit, remaining)
-                gates[gate_index]["trayQueue"].append(
+        chunks = build_tray_chunks(
+            solution_colors,
+            shooter_capacity=max(1, int(self.config.shooter_capacity)),
+            tray_unit=max(1, int(self.config.tray_unit)),
+        )
+        gates, metrics = schedule_tray_chunks(chunks, gate_count, self.rng)
+        level["gateSystem"]["gates"] = gates
+        self._gate_layout_metrics = metrics
+        self._note(
+            "Tray layout: "
+            f"maxRun={metrics.max_same_color_run}, adjacent={metrics.adjacent_same_pairs}, "
+            f"duplicateDepth={metrics.duplicate_depth_pairs}, avgGap={metrics.average_repeat_gap:.1f}, "
+            f"queueImbalance={metrics.queue_imbalance}."
+        )
+        if metrics.max_same_color_run > 1 or metrics.duplicate_depth_pairs > 0:
+            self._note(
+                "Some tray color repetition remains because the available color counts cannot fill every "
+                "gate/depth position uniquely."
+            )
+
+    def _apply_phase_color_layout(self, level: Dict[str, Any]) -> None:
+        records = self._color_records(level)
+        if len(records) < 2:
+            return
+        gates = level.get("gateSystem", {}).get("gates", []) or []
+        max_depth = max((len(gate.get("trayQueue", []) or []) for gate in gates), default=1)
+        phases = self.config.normalized_phases()
+        assigned_positions: Dict[Tuple[int, int], str] = {}
+        placed_by_color: Dict[str, List[Tuple[int, int]]] = {}
+
+        buckets: Dict[int, List[Dict[str, Any]]] = {}
+        for record in records:
+            buckets.setdefault(record["effective_capacity"], []).append(record)
+
+        for bucket_records in buckets.values():
+            available = Counter(record["shooter"].get("colorId", "Blue") for record in bucket_records)
+            phase_progress: Dict[Tuple[str, int, int], Dict[str, int]] = {}
+            ordered = sorted(
+                bucket_records,
+                key=lambda record: (
+                    record["unlock_order"],
+                    record["row"],
+                    record["column"],
+                    record["queue_index"],
+                ),
+            )
+            for order_index, record in enumerate(ordered, start=1):
+                phase = self._phase_for_click(phases, min(order_index, phases[-1].end_click))
+                decision = self._phase_weight(phase.decision_trap)
+                unlock = self._phase_weight(phase.unlock_maze)
+                same_route = self._phase_weight(phase.same_color_route)
+                progress = (order_index - 1) / max(1, len(ordered) - 1)
+                depth = min(max_depth - 1, int(progress * max_depth))
+                demand = self._gate_colors_at_depth(gates, depth)
+                target_decoy = (0.10, 0.25, 0.40, 0.55)[decision]
+                target_decoy = min(0.80, target_decoy + (unlock / 3.0) * (1.0 - progress) * 0.15)
+                phase_key = (phase.name, phase.start_click, phase.end_click)
+                progress_counts = phase_progress.setdefault(phase_key, {"total": 0, "decoys": 0})
+                next_total = progress_counts["total"] + 1
+                target_decoys = round(target_decoy * next_total)
+                force_match = order_index == 1
+                want_decoy = not force_match and progress_counts["decoys"] < target_decoys
+                candidates = [color for color, count in available.items() if count > 0]
+                preferred = [
+                    color
+                    for color in candidates
+                    if (color not in demand) == want_decoy
+                ]
+                if preferred:
+                    candidates = preferred
+
+                position = (record["row"], record["column"])
+                scored: List[Tuple[Tuple[float, ...], str]] = []
+                for color in candidates:
+                    neighbor_matches = sum(
+                        assigned_positions.get(neighbor) == color
+                        for neighbor in (
+                            (position[0] - 1, position[1]),
+                            (position[0] + 1, position[1]),
+                            (position[0], position[1] - 1),
+                            (position[0], position[1] + 1),
+                        )
+                    )
+                    route_positions = placed_by_color.get(color, [])
+                    route_match = any(
+                        other_col != position[1]
+                        and abs(other_row - position[0]) + abs(other_col - position[1]) > 1
+                        for other_row, other_col in route_positions
+                    )
+                    scored.append(
+                        (
+                            (
+                                float(neighbor_matches),
+                                -float(same_route) if route_match else 0.0,
+                                -float(available[color]),
+                                self.rng.random(),
+                            ),
+                            color,
+                        )
+                    )
+                selected = min(scored, key=lambda item: item[0])[1]
+                record["shooter"]["colorId"] = selected
+                available[selected] -= 1
+                progress_counts["total"] += 1
+                if selected not in demand:
+                    progress_counts["decoys"] += 1
+                assigned_positions[position] = selected
+                placed_by_color.setdefault(selected, []).append(position)
+
+        self._ensure_initial_demand_match(level, records)
+        self._note("Applied phase-aware shooter color placement for decision, unlock, and route pressure.")
+
+    def _color_records(self, level: Dict[str, Any]) -> List[Dict[str, Any]]:
+        records: List[Dict[str, Any]] = []
+        rows = max(1, int(level.get("grid", {}).get("rows", 1) or 1))
+        for cell in level.get("grid", {}).get("cells", []) or []:
+            row = int(cell.get("row", 0) or 0)
+            column = int(cell.get("column", 0) or 0)
+            entity = cell.get("entity") or {}
+            if entity.get("type") == "Shooter" and entity.get("shooter"):
+                shooter = entity["shooter"]
+                records.append(
                     {
-                        "trayId": short_id("t"),
-                        "layers": [{"colorId": color, "requiredCount": required}],
+                        "shooter": shooter,
+                        "row": row,
+                        "column": column,
+                        "queue_index": 0,
+                        "unlock_order": float(row),
+                        "effective_capacity": self._effective_shooter_capacity(shooter),
+                        "is_grid_shooter": True,
                     }
                 )
-                remaining -= required
-        level["gateSystem"]["gates"] = gates
+            elif entity.get("type") == "Tunnel":
+                for queue_index, shooter in enumerate(entity.get("shooterQueue", []) or [], start=1):
+                    records.append(
+                        {
+                            "shooter": shooter,
+                            "row": row,
+                            "column": column,
+                            "queue_index": queue_index,
+                            "unlock_order": float(rows + row + queue_index),
+                            "effective_capacity": self._effective_shooter_capacity(shooter),
+                            "is_grid_shooter": False,
+                        }
+                    )
+        return records
+
+    def _effective_shooter_capacity(self, shooter: Dict[str, Any]) -> int:
+        multiplier = 2 if self._shooter_has_special(shooter) else 1
+        return max(1, int(shooter.get("capacity", self.config.shooter_capacity) or 1)) * multiplier
+
+    def _gate_colors_at_depth(self, gates: Sequence[Dict[str, Any]], depth: int) -> set[str]:
+        colors: set[str] = set()
+        for gate in gates:
+            queue = gate.get("trayQueue", []) or []
+            if not queue:
+                continue
+            tray = queue[min(depth, len(queue) - 1)]
+            layers = tray.get("layers", []) or []
+            if layers:
+                colors.add(str(layers[0].get("colorId", "None")))
+        return colors
+
+    def _ensure_initial_demand_match(
+        self,
+        level: Dict[str, Any],
+        records: Sequence[Dict[str, Any]],
+    ) -> None:
+        gates = level.get("gateSystem", {}).get("gates", []) or []
+        demand = self._gate_colors_at_depth(gates, 0)
+        active = [
+            record
+            for record in records
+            if record["is_grid_shooter"] and record["row"] == 0
+        ]
+        if not active or any(record["shooter"].get("colorId") in demand for record in active):
+            return
+        for target in active:
+            for source in records:
+                if source["effective_capacity"] != target["effective_capacity"]:
+                    continue
+                if source["shooter"].get("colorId") not in demand:
+                    continue
+                target_color = target["shooter"].get("colorId")
+                target["shooter"]["colorId"] = source["shooter"].get("colorId")
+                source["shooter"]["colorId"] = target_color
+                return
+
+    def _phase_weight(self, value: int) -> int:
+        return max(0, min(3, int(value)))
+
+    def _average_phase_weight(self, field_name: str) -> float:
+        phases = self.config.normalized_phases()
+        values = [self._phase_weight(getattr(phase, field_name, 0)) for phase in phases]
+        return sum(values) / max(1, len(values))

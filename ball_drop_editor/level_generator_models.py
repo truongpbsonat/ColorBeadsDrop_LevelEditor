@@ -37,7 +37,18 @@ class GeneratorPhase:
     same_color_route: int = 0
     tunnel_pressure: int = 0
     obstacle_pressure: int = 0
-    obstacle_types: List[str] = field(default_factory=lambda: ["IceBlock", "IceTray"])
+    obstacle_types: List[str] = field(default_factory=lambda: ["IceBlock", "IceShooter", "IceTray"])
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "decision_trap",
+            "conveyor_pressure",
+            "unlock_maze",
+            "same_color_route",
+            "tunnel_pressure",
+            "obstacle_pressure",
+        ):
+            setattr(self, field_name, max(0, min(3, int(getattr(self, field_name)))))
 
     @property
     def target_score(self) -> float:
@@ -68,7 +79,9 @@ class GeneratorConfig:
     color_count: int = 5
     color_mode: str = "Auto"
     manual_colors: List[str] = field(default_factory=list)
-    allowed_devices: List[str] = field(default_factory=lambda: ["Wall", "Tunnel", "IceBlock", "IceTray"])
+    allowed_devices: List[str] = field(
+        default_factory=lambda: ["Wall", "Tunnel", "IceBlock", "IceShooter", "IceTray"]
+    )
     tunnel_queue_min: int = 1
     tunnel_queue_max: int = 2
     empty_cell_strategy: str = "Add Shooters"
@@ -81,6 +94,9 @@ class GeneratorConfig:
     reference_level: Optional[Dict[str, Any]] = None
     reference_curve_targets: List[float] = field(default_factory=list)
     reference_min_difference: float = 0.0
+    overall_tolerance: float = 8.0
+    phase_tolerance: float = 12.0
+    exact_device_counts: Dict[str, int] = field(default_factory=dict)
 
     def normalized_phases(self) -> List[GeneratorPhase]:
         if self.phases:
@@ -94,6 +110,25 @@ class GeneratorConfig:
 
 
 @dataclass
+class GateLayoutMetrics:
+    max_same_color_run: int = 0
+    adjacent_same_pairs: int = 0
+    duplicate_depth_pairs: int = 0
+    average_repeat_gap: float = 0.0
+    queue_imbalance: int = 0
+    avoidable_repeats: int = 0
+
+    def rank(self) -> tuple[float, ...]:
+        return (
+            float(self.max_same_color_run),
+            float(self.adjacent_same_pairs),
+            float(self.duplicate_depth_pairs),
+            -float(self.average_repeat_gap),
+            float(self.queue_imbalance),
+        )
+
+
+@dataclass
 class CandidateResult:
     level: Dict[str, Any]
     score: SolverScoreResult
@@ -104,3 +139,6 @@ class CandidateResult:
     notes: List[str] = field(default_factory=list)
     structural_difference: float = 0.0
     reference_curve_error: float = 0.0
+    quality_passed: bool = False
+    quality_reasons: List[str] = field(default_factory=list)
+    layout_metrics: GateLayoutMetrics = field(default_factory=GateLayoutMetrics)

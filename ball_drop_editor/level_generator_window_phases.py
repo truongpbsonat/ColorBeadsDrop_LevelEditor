@@ -54,12 +54,12 @@ class LevelGeneratorWindowPhaseMixin:
             max(1, safe_int(str(start), 1)),
             max(1, safe_int(str(end), 1)),
             target_name,
-            max(0, safe_int(str(decision), 0)),
-            max(0, safe_int(str(conveyor), 0)),
-            max(0, safe_int(str(unlock), 0)),
-            max(0, safe_int(str(same_color), 0)),
-            max(0, safe_int(str(tunnel), 0)),
-            max(0, safe_int(str(obstacle), 0)),
+            self._clamp_phase_weight(safe_int(str(decision), 0)),
+            self._clamp_phase_weight(safe_int(str(conveyor), 0)),
+            self._clamp_phase_weight(safe_int(str(unlock), 0)),
+            self._clamp_phase_weight(safe_int(str(same_color), 0)),
+            self._clamp_phase_weight(safe_int(str(tunnel), 0)),
+            self._clamp_phase_weight(safe_int(str(obstacle), 0)),
         )
 
     def _parse_phase_tree_values(self, values: Any) -> tuple[Any, ...]:
@@ -78,12 +78,12 @@ class LevelGeneratorWindowPhaseMixin:
             max(1, safe_int(str(phase_values[1]), 1)),
             max(1, safe_int(str(phase_values[2]), 1)),
             target_name,
-            max(0, safe_int(str(phase_values[4]), 0)),
-            max(0, safe_int(str(phase_values[5]), 0)),
-            max(0, safe_int(str(phase_values[6]), 0)),
-            max(0, safe_int(str(phase_values[7]), 0)),
-            max(0, safe_int(str(phase_values[8]), 0)),
-            max(0, safe_int(str(phase_values[9]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[4]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[5]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[6]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[7]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[8]), 0)),
+            self._clamp_phase_weight(safe_int(str(phase_values[9]), 0)),
         )
 
     def load_selected_phase(self, _event=None) -> None:
@@ -308,7 +308,7 @@ class LevelGeneratorWindowPhaseMixin:
                     same_color_route=same_color,
                     tunnel_pressure=tunnel,
                     obstacle_pressure=obstacle,
-                    obstacle_types=list(GRID_OBSTACLE_TYPES) + ["IceTray"],
+                    obstacle_types=list(GRID_OBSTACLE_TYPES) + ["IceShooter", "IceTray"],
                 )
             )
         return phases
