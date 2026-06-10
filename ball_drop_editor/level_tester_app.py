@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
 from .level_tester_core import BallDropSimulator, DeepSearchSolver, SolveResult, iter_json_files
+from .level_tester_score import SolverScoreAdapter, difficulty_label
 
 DEFAULT_TEST_FOLDER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "30_Levels_1stRelease")
@@ -65,18 +66,18 @@ class LevelTesterWindow(tk.Toplevel):
         table_frame.columnconfigure(0, weight=1)
         body.add(table_frame, weight=4)
 
-        columns = ("file", "status", "attempt", "time", "clicks", "steps", "nodes")
+        columns = ("file", "status", "difficulty", "time", "clicks", "steps", "nodes")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
         self.tree.heading("file", text="File")
         self.tree.heading("status", text="Status")
-        self.tree.heading("attempt", text="Attempt")
+        self.tree.heading("difficulty", text="Difficulty")
         self.tree.heading("time", text="Time")
         self.tree.heading("clicks", text="Clicks")
         self.tree.heading("steps", text="Steps")
         self.tree.heading("nodes", text="Nodes")
         self.tree.column("file", width=420)
         self.tree.column("status", width=95, anchor="center")
-        self.tree.column("attempt", width=80, anchor="center")
+        self.tree.column("difficulty", width=110, anchor="center")
         self.tree.column("time", width=85, anchor="center")
         self.tree.column("clicks", width=80, anchor="center")
         self.tree.column("steps", width=80, anchor="center")
@@ -167,6 +168,10 @@ class LevelTesterWindow(tk.Toplevel):
                 simulator = BallDropSimulator.from_file(file_path)
                 solver = DeepSearchSolver(simulator, time_budget=budget)
                 result = solver.solve_file(file_path, cancel_check=self.cancel_event.is_set)
+                if result.status == "PASS":
+                    scored = SolverScoreAdapter().score_solve_result(simulator, result)
+                    result.difficulty_score = scored.overall_score
+                    result.difficulty_label = difficulty_label(scored.overall_score)
             except Exception as exc:
                 result = SolveResult(
                     file_path=file_path,
@@ -205,10 +210,13 @@ class LevelTesterWindow(tk.Toplevel):
     def _apply_result(self, result: SolveResult) -> None:
         self.results[result.file_path] = result
         status = result.status
+        difficulty = "-"
+        if result.difficulty_score is not None:
+            difficulty = f"{result.difficulty_label} {result.difficulty_score:.0f}"
         values = (
             os.path.basename(result.file_path),
             status,
-            result.attempt or "-",
+            difficulty,
             f"{result.elapsed:.1f}s",
             result.clicks or len(result.solution) or "-",
             result.steps or "-",
@@ -241,6 +249,13 @@ class LevelTesterWindow(tk.Toplevel):
             self.detail_text.insert("end", "No result yet.")
             return
         self.detail_text.insert("end", f"{result.status}: {file_path}\n")
+        if result.difficulty_score is not None:
+            self.detail_text.insert(
+                "end",
+                f"Difficulty: {result.difficulty_label} ({result.difficulty_score:.1f}/100)\n",
+            )
+        if result.attempt:
+            self.detail_text.insert("end", f"Search attempts: {result.attempt}\n")
         if result.message:
             self.detail_text.insert("end", f"{result.message}\n")
         if result.solution:

@@ -80,6 +80,14 @@ class SolverScoreAdapter:
         scored.message = result.message
         return scored
 
+    def score_solve_result(
+        self,
+        simulator: BallDropSimulator,
+        result: SolveResult,
+        phases: Optional[List[Dict[str, Any]]] = None,
+    ) -> SolverScoreResult:
+        return self._score_solution(simulator, result, phases or [])
+
     def _score_solution(
         self,
         simulator: BallDropSimulator,
@@ -236,3 +244,15 @@ class SolverScoreAdapter:
             tunnel_pressure=sum(item.metrics.tunnel_pressure for item in per_click) / count,
             obstacle_pressure=sum(item.metrics.obstacle_pressure for item in per_click) / count,
         )
+
+
+def difficulty_label(score: float) -> str:
+    if score < 20:
+        return "Easy"
+    if score < 40:
+        return "Medium"
+    if score < 60:
+        return "Hard"
+    if score < 80:
+        return "Very Hard"
+    return "Extreme"

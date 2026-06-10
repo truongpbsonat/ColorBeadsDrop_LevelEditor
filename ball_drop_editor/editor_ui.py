@@ -34,8 +34,8 @@ class EditorUiMixin:
         workspace = ttk.Frame(self, padding=(0, 8, 8, 8))
         workspace.grid(row=1, column=1, sticky="nsew")
         workspace.rowconfigure(0, weight=1)
-        workspace.columnconfigure(0, weight=7, minsize=560, uniform="workspace")
-        workspace.columnconfigure(1, weight=3, minsize=240, uniform="workspace")
+        workspace.columnconfigure(0, weight=13, minsize=560, uniform="workspace")
+        workspace.columnconfigure(1, weight=7, minsize=240, uniform="workspace")
 
         grid_workspace = ttk.Frame(workspace, padding=(0, 0, 4, 0))
         gate_workspace = ttk.Frame(workspace, padding=(4, 0, 0, 0))
@@ -293,6 +293,7 @@ class EditorUiMixin:
 
         self.tunnel_queue_grid = ttk.Frame(self.tunnel_queue_panel)
         self.tunnel_queue_grid.pack(fill="both", expand=True)
+        self.tunnel_queue_grid.columnconfigure(0, weight=1)
 
         controls = ttk.Frame(self.tunnel_queue_panel)
         controls.pack(fill="x", pady=(8, 0))
@@ -360,7 +361,7 @@ class EditorUiMixin:
                 self.cell_edit_color,
                 color,
                 "",
-                command=self.auto_apply_cell_editor,
+                command=self.auto_apply_color_editor,
                 width=2,
                 height=1,
                 normal_bg=bg,

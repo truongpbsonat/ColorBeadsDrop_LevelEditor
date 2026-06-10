@@ -128,6 +128,8 @@ class SolveResult:
     file_path: str
     status: str
     attempt: int = 0
+    difficulty_score: Optional[float] = None
+    difficulty_label: str = ""
     elapsed: float = 0.0
     steps: int = 0
     clicks: int = 0
@@ -215,6 +217,39 @@ class BallDropSimulator:
         self.settle_tunnels(state)
         self.refresh_lock_bars(state)
         return state
+
+    def capacity_balance_errors(self) -> List[str]:
+        state = self.initial_state()
+        shooter_capacity: Dict[str, int] = {}
+        tray_required: Dict[str, int] = {}
+
+        for cell in state.cells:
+            if cell.type == "Shooter" and cell.shooter:
+                shooter_capacity[cell.shooter.color] = (
+                    shooter_capacity.get(cell.shooter.color, 0) + cell.shooter.capacity
+                )
+            elif cell.type == "Tunnel":
+                for shooter in cell.queue:
+                    shooter_capacity[shooter.color] = (
+                        shooter_capacity.get(shooter.color, 0) + shooter.capacity
+                    )
+
+        for gate in state.gates:
+            for tray in gate:
+                for color, required in tray.layers:
+                    tray_required[color] = tray_required.get(color, 0) + int(required)
+
+        errors = []
+        for color in sorted(set(shooter_capacity) | set(tray_required)):
+            capacity = shooter_capacity.get(color, 0)
+            required = tray_required.get(color, 0)
+            if capacity == required:
+                continue
+            errors.append(
+                f"{color}: shooter capacity={capacity}, tray required={required}, "
+                f"delta={capacity - required:+d}"
+            )
+        return errors
 
     def _parse_cell(self, entity: Optional[Dict[str, Any]]) -> CellState:
         if not entity:
@@ -669,6 +704,16 @@ class DeepSearchSolver:
 
     def solve_file(self, path: str, cancel_check=None) -> SolveResult:
         started = time.monotonic()
+        balance_errors = self.simulator.capacity_balance_errors()
+        if balance_errors:
+            return SolveResult(
+                file_path=path,
+                status="ERROR",
+                elapsed=time.monotonic() - started,
+                message="Capacity/tray mismatch:\n" + "\n".join(
+                    f"- {error}" for error in balance_errors
+                ),
+            )
         nodes_total = 0
         attempt = 0
         best_state: Optional[GameState] = None

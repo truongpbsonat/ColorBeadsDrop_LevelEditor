@@ -102,8 +102,16 @@ class EditorCellsMixin:
             return None
         if self.selected_cell:
             self.apply_cell_editor_to_selected(show_warning=False)
-        if hasattr(self, "selected_layer_color_var"):
+        return None
+
+    def auto_apply_color_editor(self, event=None):
+        if self._syncing_cell_editor:
+            return None
+        target = getattr(self, "_active_color_target", "cell")
+        if target == "tray" and self.selected_tray_index is not None:
             self.apply_selected_layer_fields()
+        elif target == "cell" and self.selected_cell:
+            self.apply_cell_editor_to_selected(show_warning=False)
         return None
 
     def apply_modifier_button_change(self, modifier_type: str):
@@ -204,7 +212,7 @@ class EditorCellsMixin:
                 padx=5 if is_selected else 1,
                 pady=5 if is_selected else 1,
             )
-            border.grid(row=index // 2, column=index % 2, padx=2, pady=2)
+            border.grid(row=index, column=0, sticky="ew", padx=2, pady=2)
             shooter_entity = {"type": "Shooter", "shooter": shooter}
             btn = tk.Button(
                 border,
@@ -249,6 +257,7 @@ class EditorCellsMixin:
             self._syncing_cell_editor = was_syncing
 
     def select_tunnel_queue_shooter(self, index: int):
+        self._active_color_target = "cell"
         self.cell_edit_tunnel_queue_index = index
         self._refresh_cell_tunnel_queue(index)
 
@@ -622,6 +631,7 @@ class EditorCellsMixin:
         self.refresh_json_preview()
 
     def select_cell(self, row: int, col: int, paint: bool = False, additive: bool = False):
+        self._active_color_target = "cell"
         self.selected_cell = (row, col)
         cell = find_cell(self.level, row, col)
         ent = cell.get("entity")
