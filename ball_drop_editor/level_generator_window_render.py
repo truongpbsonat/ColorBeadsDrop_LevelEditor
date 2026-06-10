@@ -28,14 +28,16 @@ class LevelGeneratorWindowRenderMixin:
             (
                 "log",
                 f"Attempt {attempt}/{total}: {candidate.score.status}, "
+                f"quality {'PASS' if candidate.quality_passed else 'REVIEW'}, "
                 f"target error {candidate.target_error:.1f}{reference_extra}, best {best_label}",
             )
         )
 
     def _render_candidate(self, candidate: CandidateResult) -> None:
         score = candidate.score
+        quality_label = "PASS" if candidate.quality_passed else "REVIEW"
         self.status_var.set(
-            f"Preview: {score.status}, score={score.overall_score:.1f}, "
+            f"Preview: {score.status}, quality={quality_label}, score={score.overall_score:.1f}, "
             f"target error={candidate.target_error:.1f}, attempt={candidate.attempt}"
         )
         self._log(self.status_var.get())
@@ -45,6 +47,19 @@ class LevelGeneratorWindowRenderMixin:
             self._log(f"WARN: {warning}")
         for note in candidate.notes[:12]:
             self._log(f"NOTE: {note}")
+        metrics = candidate.layout_metrics
+        max_phase_deficit = max(
+            (phase.target_score - phase.actual_score for phase in score.phase_scores),
+            default=0.0,
+        )
+        self._log(
+            f"LAYOUT: maxRun={metrics.max_same_color_run}, "
+            f"duplicateDepth={metrics.duplicate_depth_pairs}, "
+            f"adjacent={metrics.adjacent_same_pairs}, "
+            f"maxPhaseDeficit={max(0.0, max_phase_deficit):.1f}"
+        )
+        for reason in candidate.quality_reasons[:8]:
+            self._log(f"QUALITY: {reason}")
         self._render_chart(candidate)
 
     def _render_chart(self, candidate: CandidateResult) -> None:

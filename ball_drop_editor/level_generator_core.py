@@ -5,7 +5,7 @@ import random
 from typing import List
 
 from .level_generator_candidate import DifficultyCurveCandidateMixin
-from .level_generator_models import GeneratorConfig
+from .level_generator_models import GateLayoutMetrics, GeneratorConfig
 from .level_generator_scoring import DifficultyCurveScoringMixin
 from .level_tester_score import SolverScoreAdapter
 from .validator import LevelValidator
@@ -21,3 +21,4 @@ class DifficultyCurveGenerator(
         self.validator = LevelValidator()
         self.solver = SolverScoreAdapter(time_budget=config.solver_budget)
         self._candidate_notes: List[str] = []
+        self._gate_layout_metrics = GateLayoutMetrics()

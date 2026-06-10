@@ -10,6 +10,97 @@ from .constants import BALL_COLORS
 from .level_data import normalize_runtime_level
 from .level_generator_models import GeneratorConfig
 
+GENERATOR_DEVICE_KEYS = (
+    "Wall",
+    "Tunnel",
+    "IceBlock",
+    "IceShooter",
+    "IceTray",
+    "Special",
+    "ConnectedGroup",
+    "LockBar",
+)
+
+
+def count_generator_devices(level: Dict[str, Any]) -> Dict[str, int]:
+    counts = {key: 0 for key in GENERATOR_DEVICE_KEYS}
+    grid = level.get("grid", {}) or {}
+    for cell in grid.get("cells", []) or []:
+        entity = cell.get("entity") or {}
+        entity_type = entity.get("type")
+        if entity_type == "Wall":
+            counts["Wall"] += 1
+        elif entity_type == "Tunnel":
+            counts["Tunnel"] += 1
+            shooters = entity.get("shooterQueue", []) or []
+            counts["IceShooter"] += sum(
+                any(modifier.get("type") == "Ice" for modifier in shooter.get("modifiers", []) or [])
+                for shooter in shooters
+            )
+            counts["Special"] += sum(
+                any(modifier.get("type") == "Special" for modifier in shooter.get("modifiers", []) or [])
+                for shooter in shooters
+            )
+        elif entity_type == "Shooter":
+            shooter = entity.get("shooter", {}) or {}
+            if any(modifier.get("type") == "Ice" for modifier in shooter.get("modifiers", []) or []):
+                counts["IceShooter"] += 1
+            if any(modifier.get("type") == "Special" for modifier in shooter.get("modifiers", []) or []):
+                counts["Special"] += 1
+
+    for obstacle in grid.get("obstacles", []) or []:
+        obstacle_type = obstacle.get("type")
+        if obstacle_type in {"IceBlock", "LockBar"}:
+            counts[obstacle_type] += 1
+
+    counts["ConnectedGroup"] = sum(
+        group.get("type") == "Connected"
+        for group in grid.get("shooterGroups", []) or []
+    )
+    for gate in level.get("gateSystem", {}).get("gates", []) or []:
+        for tray in gate.get("trayQueue", []) or []:
+            if any(modifier.get("type") == "Ice" for modifier in tray.get("modifiers", []) or []):
+                counts["IceTray"] += 1
+    return counts
+
+
+def infer_template_pressures(level: Dict[str, Any]) -> Dict[str, int]:
+    counts = count_generator_devices(level)
+    shooter_count = 0
+    row_total = 0
+    rows = max(1, int(level.get("grid", {}).get("rows", 1) or 1))
+    for cell in level.get("grid", {}).get("cells", []) or []:
+        entity = cell.get("entity") or {}
+        if entity.get("type") == "Shooter":
+            shooter_count += 1
+            row_total += int(cell.get("row", 0) or 0)
+        elif entity.get("type") == "Tunnel":
+            queue_count = len(entity.get("shooterQueue", []) or [])
+            shooter_count += queue_count
+            row_total += (rows + int(cell.get("row", 0) or 0)) * queue_count
+
+    obstacle_count = counts["IceBlock"] + counts["IceShooter"] + counts["IceTray"] + counts["LockBar"]
+    decision_count = counts["Special"] + counts["ConnectedGroup"] * 2
+    density_base = max(1, shooter_count)
+    average_unlock = row_total / density_base
+    unlock_ratio = average_unlock / max(1, rows - 1)
+    return {
+        "decision": _pressure_weight(decision_count / density_base, (0.08, 0.16)),
+        "obstacle": _pressure_weight(obstacle_count / density_base, (0.10, 0.20)),
+        "tunnel": _pressure_weight(counts["Tunnel"] / density_base, (0.10, 0.20)),
+        "unlock": _pressure_weight(unlock_ratio, (0.35, 0.70)),
+    }
+
+
+def _pressure_weight(value: float, thresholds: tuple[float, float]) -> int:
+    if value <= 0:
+        return 0
+    if value < thresholds[0]:
+        return 1
+    if value < thresholds[1]:
+        return 2
+    return 3
+
 
 def build_config_from_template(template: Dict[str, Any], base: GeneratorConfig) -> GeneratorConfig:
     config = copy.deepcopy(base)

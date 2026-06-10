@@ -17,6 +17,8 @@ class LevelGeneratorWindowStateMixin:
         self.mode_var = tk.StringVar(value="Preset")
         self.template_folder_var = tk.StringVar(value="")
         self.reference_file_var = tk.StringVar(value="")
+        self.learn_source_pressure_var = tk.BooleanVar(value=True)
+        self.keep_source_counts_var = tk.BooleanVar(value=False)
         self.rows_var = tk.IntVar(value=int(grid.get("rows", 6) or 6))
         self.cols_var = tk.IntVar(value=int(grid.get("columns", 5) or 5))
         self.gates_var = tk.IntVar(value=int(gate_system.get("gateCount", 4) or 4))
@@ -38,6 +40,7 @@ class LevelGeneratorWindowStateMixin:
         self.allow_wall_var = tk.BooleanVar(value=True)
         self.allow_tunnel_var = tk.BooleanVar(value=True)
         self.allow_iceblock_var = tk.BooleanVar(value=True)
+        self.allow_iceshooter_var = tk.BooleanVar(value=True)
         self.allow_icetray_var = tk.BooleanVar(value=True)
         self.allow_special_var = tk.BooleanVar(value=False)
         self.allow_connected_group_var = tk.BooleanVar(value=False)
@@ -56,6 +59,7 @@ class LevelGeneratorWindowStateMixin:
         self.batch_count_var = tk.IntVar(value=5)
         self.export_folder_var = tk.StringVar(value=getattr(self.master, "level_folder", os.getcwd()))
         self.status_var = tk.StringVar(value="Ready")
+        self.source_device_counts: Dict[str, int] = {}
 
         self.phase_enabled_var = tk.BooleanVar(value=True)
         self.phase_name_var = tk.StringVar(value="Spike")

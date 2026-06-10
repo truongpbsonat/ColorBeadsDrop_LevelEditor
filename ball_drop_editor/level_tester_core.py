@@ -90,6 +90,15 @@ class LockBarState:
 
 
 @dataclass
+class IceBlockState:
+    cells: Tuple[Tuple[int, int], ...]
+    hp: int
+
+    def key(self) -> Tuple[Any, ...]:
+        return self.cells, self.hp
+
+
+@dataclass
 class GameState:
     rows: int
     cols: int
@@ -97,6 +106,7 @@ class GameState:
     gates: List[List[TrayState]]
     base_obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
+    ice_blocks: List[IceBlockState] = field(default_factory=list)
     lock_bars: List[LockBarState] = field(default_factory=list)
     connected_groups: Tuple[Tuple[str, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
@@ -118,6 +128,7 @@ class GameState:
             ),
             tuple(self.conveyor),
             tuple(self.hopper),
+            tuple(ice_block.key() for ice_block in self.ice_blocks),
             tuple(lock_bar.key() for lock_bar in self.lock_bars),
             self.lost,
         )
@@ -181,19 +192,19 @@ class BallDropSimulator:
             gates.append(gate)
 
         obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
+        ice_blocks: List[IceBlockState] = []
         lock_bars: List[LockBarState] = []
         for obstacle in grid.get("obstacles", []) or []:
             obstacle_type = obstacle.get("type")
             if obstacle_type == "IceBlock":
-                obstacle_cells = self._expand_obstacle_cells(obstacle)
+                obstacle_cells = tuple(
+                    (row, col)
+                    for row, col in self._expand_obstacle_cells(obstacle)
+                    if 0 <= row < rows and 0 <= col < cols
+                )
                 hp = max(1, int(obstacle.get("hp", 1) or 1))
-                for row, col in obstacle_cells:
-                    if not (0 <= row < rows and 0 <= col < cols):
-                        continue
-                    obstacle_blocked[row][col] = True
-                    cell = cells[row * cols + col]
-                    if cell.type == "Shooter" and cell.shooter:
-                        cell.shooter.ice_hp = max(cell.shooter.ice_hp, hp)
+                if obstacle_cells:
+                    ice_blocks.append(IceBlockState(cells=obstacle_cells, hp=hp))
             elif obstacle_type == "LockBar":
                 lock_cells = self._expand_lockbar_cells(obstacle)
                 if lock_cells:
@@ -211,11 +222,12 @@ class BallDropSimulator:
             gates=gates,
             base_obstacle_blocked=base_obstacle_blocked,
             obstacle_blocked=base_obstacle_blocked,
+            ice_blocks=ice_blocks,
             lock_bars=lock_bars,
             connected_groups=connected_groups,
         )
         self.settle_tunnels(state)
-        self.refresh_lock_bars(state)
+        self.refresh_obstacle_blocking(state)
         return state
 
     def capacity_balance_errors(self) -> List[str]:
@@ -328,6 +340,8 @@ class BallDropSimulator:
             if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
                 continue
             row, col = divmod(index, state.cols)
+            if state.obstacle_blocked and state.obstacle_blocked[row][col]:
+                continue
             if self.has_path_to_exit(state, row, col):
                 active.append((row, col, cell.shooter))
                 if cell.shooter.shooter_id:
@@ -345,6 +359,8 @@ class BallDropSimulator:
                 if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
                     continue
                 row, col = divmod(index, state.cols)
+                if state.obstacle_blocked and state.obstacle_blocked[row][col]:
+                    continue
                 action = (row, col, cell.shooter)
                 if action not in active:
                     active.append(action)
@@ -389,6 +405,8 @@ class BallDropSimulator:
         shooter = cell.shooter
         if shooter.capacity <= 0 or shooter.ice_hp > 0:
             return False
+        if state.obstacle_blocked and state.obstacle_blocked[row][col]:
+            return False
         if not self.has_path_to_exit(state, row, col):
             if not self._can_group_member_click(state, shooter):
                 return False
@@ -404,9 +422,9 @@ class BallDropSimulator:
         else:
             state.hopper.extend([shooter.color] * shooter.capacity)
             state.cells[index] = CellState("Empty")
-        self.refresh_lock_bars(state)
+        self.refresh_obstacle_blocking(state)
         self.settle_tunnels(state)
-        self.refresh_lock_bars(state)
+        self.refresh_obstacle_blocking(state)
         return True
 
     def settle_tunnels(self, state: GameState) -> None:
@@ -426,12 +444,12 @@ class BallDropSimulator:
                 out_index = out_row * state.cols + out_col
                 if state.cells[out_index].type != "Empty":
                     continue
+                if state.obstacle_blocked and state.obstacle_blocked[out_row][out_col]:
+                    continue
                 state.cells[out_index] = CellState("Shooter", shooter=cell.queue.pop(0))
                 changed = True
 
-    def refresh_lock_bars(self, state: GameState) -> None:
-        if not state.lock_bars:
-            return
+    def refresh_obstacle_blocking(self, state: GameState) -> None:
         for lock_bar in state.lock_bars:
             if not lock_bar.active:
                 continue
@@ -444,6 +462,12 @@ class BallDropSimulator:
                 lock_bar.active = False
 
         blocked = [list(row) for row in (state.base_obstacle_blocked or state.obstacle_blocked)]
+        for ice_block in state.ice_blocks:
+            if ice_block.hp <= 0:
+                continue
+            for row, col in ice_block.cells:
+                if 0 <= row < state.rows and 0 <= col < state.cols:
+                    blocked[row][col] = True
         for lock_bar in state.lock_bars:
             if not lock_bar.active:
                 continue
@@ -451,6 +475,9 @@ class BallDropSimulator:
                 if 0 <= row < state.rows and 0 <= col < state.cols:
                     blocked[row][col] = True
         state.obstacle_blocked = tuple(tuple(row) for row in blocked)
+
+    def refresh_lock_bars(self, state: GameState) -> None:
+        self.refresh_obstacle_blocking(state)
 
     def _can_group_member_click(self, state: GameState, shooter: ShooterState) -> bool:
         if not shooter.shooter_id:
@@ -467,6 +494,8 @@ class BallDropSimulator:
             if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
                 continue
             row, col = divmod(index, state.cols)
+            if state.obstacle_blocked and state.obstacle_blocked[row][col]:
+                continue
             if self.has_path_to_exit(state, row, col):
                 return True
         return False
@@ -516,7 +545,6 @@ class BallDropSimulator:
                     state.conveyor[slot] = None
                     consumed_slots.add(slot)
                     self._consume_gate_ball(state, gate_index)
-                    self.decrement_ice(state)
                     self.settle_tunnels(state)
 
         if state.hopper and state.conveyor[0] is None:
@@ -545,6 +573,8 @@ class BallDropSimulator:
         tray = state.gates[gate_index][0]
         layer = tray.layers[0]
         layer[1] -= 1
+        # Ice Shooter and IceBlock both count every ball accepted by a tray.
+        self.decrement_ice(state)
         self.decrement_adjacent_tray_ice(state, gate_index)
         if layer[1] > 0:
             return
@@ -560,6 +590,10 @@ class BallDropSimulator:
                 for shooter in cell.queue:
                     if shooter.ice_hp > 0:
                         shooter.ice_hp -= 1
+        for ice_block in state.ice_blocks:
+            if ice_block.hp > 0:
+                ice_block.hp -= 1
+        self.refresh_obstacle_blocking(state)
 
     def decrement_adjacent_tray_ice(self, state: GameState, gate_index: int) -> None:
         front_trays = self._front_tray_refs(state)
@@ -835,7 +869,25 @@ class DeepSearchSolver:
             if cell.type == "Shooter" and cell.shooter and cell.shooter.capacity > 0
         )
         moving = len(state.hopper) + sum(1 for slot in state.conveyor if slot is not None)
-        return remaining * 20 + blocked * 5 + moving + state.steps * 0.03 + randomizer.random()
+        needed = set(self.simulator.front_gate_colors(state))
+        active = self.simulator.active_shooters(state)
+        matching = sum(1 for _row, _col, shooter in active if shooter.color in needed)
+        decoys = max(0, len(active) - matching)
+        deadlock_pressure = 0.0
+        if needed and active and matching == 0:
+            deadlock_pressure = 2500.0
+        elif needed:
+            deadlock_pressure = decoys * 12.0 - matching * 20.0
+        hopper_pressure = max(0, len(state.hopper) - HOPPER_CLICK_LIMIT // 2) * 10.0
+        return (
+            remaining * 20
+            + blocked * 5
+            + moving * 2
+            + hopper_pressure
+            + deadlock_pressure
+            + state.steps * 0.03
+            + randomizer.random()
+        )
 
     def _progress_score(self, state: GameState) -> int:
         return -self._remaining_total_need(state) * 100 - len(state.hopper) - state.steps
