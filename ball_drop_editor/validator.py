@@ -10,6 +10,7 @@ from .constants import (
     GRID_OBSTACLE_TYPES,
     MECHANIC_IDS,
     RUNTIME_ENTITY_TYPES,
+    SHOOTER_FIXED_CAPACITY,
     SHOOTER_GROUP_TYPES,
     SHOOTER_MODIFIER_TYPES,
     TRAY_ICE_DEFAULT_HP,
@@ -35,7 +36,6 @@ class LevelValidator:
         color_capacity = defaultdict(int)
         blocked = [[False for _ in range(max(1, cols))] for _ in range(max(1, rows))]
         has_initial_active_shooter = False
-        wall_count = 0
 
         for cell in grid.get("cells", []):
             r, c = cell.get("row"), cell.get("column")
@@ -70,16 +70,14 @@ class LevelValidator:
                 else:
                     shooter_ids.add(sid)
                 color = shooter.get("colorId")
-                cap = shooter.get("capacity", 0)
+                cap = safe_int(str(shooter.get("capacity", 0)), 0)
                 if color not in BALL_COLORS or color == "None":
                     errors.append(f"Shooter {sid} có colorId không hợp lệ: {color}.")
                 if cap <= 0:
                     errors.append(f"Shooter {sid} capacity phải > 0.")
+                self._validate_fixed_shooter_capacity(shooter, sid, f"at ({r},{c})", warnings)
                 color_capacity[color] += self._effective_capacity(shooter)
                 self._validate_modifiers(shooter, sid, errors)
-
-            if etype == "Wall":
-                wall_count += 1
 
             if etype == "Tunnel":
                 direction = entity.get("outputDirection")
@@ -103,19 +101,18 @@ class LevelValidator:
                         errors.append(f"Duplicate shooterId trong tunnel: {sid}.")
                     shooter_ids.add(sid)
                     color = shooter.get("colorId")
-                    cap = shooter.get("capacity", 0)
+                    cap = safe_int(str(shooter.get("capacity", 0)), 0)
                     if color not in BALL_COLORS or color == "None":
                         errors.append(f"Tunnel shooter {sid} có colorId không hợp lệ: {color}.")
                     if cap <= 0:
                         errors.append(f"Tunnel shooter {sid} capacity phải > 0.")
+                    self._validate_fixed_shooter_capacity(shooter, sid, f"in tunnel {entity.get('entityId')}", warnings)
                     color_capacity[color] += self._effective_capacity(shooter)
                     self._validate_modifiers(shooter, sid, errors)
 
         self._validate_obstacles(grid, blocked, errors)
         self._validate_shooter_groups(grid, shooter_ids, errors, warnings)
 
-        if level.get("level", 0) > 5 and wall_count == 0:
-            warnings.append("No wall in a higher level.")
         for cell in grid.get("cells", []):
             entity = cell.get("entity")
             if entity and entity.get("type") == "Shooter" and self._has_path_to_top(grid, cell.get("row"), cell.get("column"), blocked):
@@ -168,7 +165,7 @@ class LevelValidator:
             delta = cap - need
             if cap < need:
                 missing = need - cap
-                shooter_count = (missing + 8) // 9
+                shooter_count = (missing + SHOOTER_FIXED_CAPACITY - 1) // SHOOTER_FIXED_CAPACITY
                 tray_count = (missing + 2) // 3
                 errors.append(
                     f"Không đủ ball màu {color}: shooterCapacity={cap}, trayRequired={need}, "
@@ -178,7 +175,7 @@ class LevelValidator:
                 )
             elif cap > need * 2:
                 extra = cap - need
-                shooter_count = (extra + 8) // 9
+                shooter_count = (extra + SHOOTER_FIXED_CAPACITY - 1) // SHOOTER_FIXED_CAPACITY
                 tray_count = (extra + 2) // 3
                 warnings.append(
                     f"Dư ball màu {color}: shooterCapacity={cap}, trayRequired={need}, "
@@ -204,6 +201,27 @@ class LevelValidator:
                 errors.append(f"Shooter modifier type không hỗ trợ: {mtype}.")
             if mtype == "Ice" and modifier.get("hp", 1) <= 0:
                 errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
+
+    def _validate_fixed_shooter_capacity(
+        self,
+        shooter: Dict[str, Any],
+        shooter_id: str,
+        location: str,
+        warnings: List[str],
+    ) -> None:
+        capacity = safe_int(str(shooter.get("capacity", 0)), 0)
+        if capacity == SHOOTER_FIXED_CAPACITY:
+            return
+        modifier_types = {
+            modifier.get("type")
+            for modifier in shooter.get("modifiers", []) or []
+            if isinstance(modifier, dict)
+        }
+        special_note = " Special shooter vẫn để capacity=9 và chỉ thêm modifier Special." if "Special" in modifier_types else ""
+        warnings.append(
+            f"Shooter {shooter_id or '?'} {location} capacity={capacity}, "
+            f"nhưng shooter capacity hiện cố định là {SHOOTER_FIXED_CAPACITY}.{special_note}"
+        )
 
     def _effective_capacity(self, shooter: Dict[str, Any]) -> int:
         capacity = max(0, safe_int(str(shooter.get("capacity", 0)), 0))
