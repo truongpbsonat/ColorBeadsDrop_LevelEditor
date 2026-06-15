@@ -37,6 +37,7 @@ RUNTIME_ENTITY_TYPES = ["Shooter", "Wall", "Tunnel"]
 DIRECTIONS = ["Up", "Down", "Left", "Right"]
 SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special"]
 TRAY_MODIFIER_TYPES = ["Ice"]
+TRAY_ICE_DEFAULT_HP = 2
 GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar"]
 GRID_OBSTACLE_SHAPE_TYPES = ["Rect", "CustomCells", "Plus", "LineHorizontal", "LineVertical"]
 SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]

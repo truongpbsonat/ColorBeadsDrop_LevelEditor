@@ -5,7 +5,7 @@ from collections import Counter
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .color_utils import SELECTABLE_BALL_COLORS
-from .constants import BALL_COLORS, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES
+from .constants import BALL_COLORS, GRID_OBSTACLE_TYPES, LEVEL_DIFFICULTIES, TRAY_ICE_DEFAULT_HP
 from .level_data import (
     detect_mechanics,
     find_cell,
@@ -590,13 +590,13 @@ class DifficultyCurveCandidateMixin:
                 for modifier in tray.get("modifiers", []) or []
                 if modifier.get("type") != "Ice"
             ]
-            modifiers.append({"type": "Ice", "hp": 3})
+            modifiers.append({"type": "Ice", "hp": TRAY_ICE_DEFAULT_HP})
             tray["modifiers"] = modifiers
             frozen_by_depth[tray_index] = frozen_at_depth + 1
             placed += 1
 
         if placed:
-            self._note(f"Placed {placed} Ice Tray modifier(s) with hp=3.")
+            self._note(f"Placed {placed} Ice Tray modifier(s) with hp={TRAY_ICE_DEFAULT_HP}.")
         else:
             self._note("Ice Tray requested, but placement was skipped to avoid freezing an entire tray row.")
 

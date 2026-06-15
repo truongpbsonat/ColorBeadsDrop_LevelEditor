@@ -4,7 +4,7 @@ import copy
 import tkinter as tk
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .constants import BALL_COLORS, COLOR_HEX
+from .constants import BALL_COLORS, COLOR_HEX, TRAY_ICE_DEFAULT_HP
 from .gate_text import gates_to_text, parse_gate_text
 from .level_data import make_tray_modifiers
 from .utils import safe_int, short_id
@@ -147,7 +147,7 @@ class EditorGateMixin:
                 self.gate_selection_label.configure(text=self._selection_summary())
                 self.selected_tray_id_var.set("")
                 self.selected_tray_ice_modifier.set(False)
-                self.selected_tray_ice_hp.set(3)
+                self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
                 self.update_selected_tray_modifier_state()
                 self.selected_layer_var.set(0)
                 self.selected_layer_color_var.set("Blue")
@@ -167,7 +167,8 @@ class EditorGateMixin:
             self.selected_tray_id_var.set(tray.get("trayId", ""))
             self.selected_tray_ice_modifier.set(ice_modifier is not None)
             self.selected_tray_ice_hp.set(
-                max(1, safe_int(str(ice_modifier.get("hp", 3)), 3)) if ice_modifier is not None else 3
+                max(1, safe_int(str(ice_modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
+                if ice_modifier is not None else TRAY_ICE_DEFAULT_HP
             )
             self.update_selected_tray_modifier_state()
             self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
@@ -242,7 +243,7 @@ class EditorGateMixin:
     def _selected_tray_modifiers(self) -> List[Dict[str, Any]]:
         return make_tray_modifiers(
             ice=self.selected_tray_ice_modifier.get(),
-            ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), 3)),
+            ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), TRAY_ICE_DEFAULT_HP)),
         )
 
     def draw_gate_preview(self):
@@ -391,7 +392,7 @@ class EditorGateMixin:
 
         ice_modifier = self._tray_ice_modifier(tray)
         if ice_modifier is not None:
-            hp = max(1, safe_int(str(ice_modifier.get("hp", 3)), 3))
+            hp = max(1, safe_int(str(ice_modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
             self._create_round_rect(
                 canvas,
                 x + width - 28,
@@ -553,7 +554,7 @@ class EditorGateMixin:
             if tray is not None:
                 tray["modifiers"] = []
         self.selected_tray_ice_modifier.set(False)
-        self.selected_tray_ice_hp.set(3)
+        self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
         self.update_selected_tray_modifier_state()
         self.refresh_gate_direct_controls()
         self.draw_gate_preview()

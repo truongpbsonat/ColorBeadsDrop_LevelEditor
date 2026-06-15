@@ -3,8 +3,9 @@ from __future__ import annotations
 import copy
 import json
 import os
-from tkinter import filedialog, messagebox
-from typing import Any, Dict, List, Optional
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .editor_paths import DEFAULT_LEVEL_SAVE_DIR
 from .level_data import (
@@ -17,6 +18,7 @@ from .level_data import (
     set_grid_size,
 )
 from .utils import safe_int
+from .validator import LevelValidator
 
 
 class EditorFileActionsMixin:
@@ -57,12 +59,75 @@ class EditorFileActionsMixin:
         if not self.has_unsaved_changes():
             return True
         change_log = "\n".join(f"- {item}" for item in self.unsaved_change_log())
-        return messagebox.askyesno(
-            "Unsaved Changes",
-            f"Current level has unsaved changes before {action}.\n\n"
-            f"Unsaved changes:\n{change_log}\n\n"
-            "Continue and discard these changes?",
-        )
+        choice = self._ask_unsaved_changes_action(action, change_log)
+        if choice == "save":
+            return self._save_current_level_before_proceed()
+        if choice == "discard":
+            return True
+        return False
+
+    def _save_current_level_before_proceed(self) -> bool:
+        if self.current_file:
+            file_level_id = self._level_id_from_path(self.current_file)
+            self._prepare_level_for_save(file_level_id)
+            return self._save_level_to_path(self.current_file)
+        return self.save_json()
+
+    def _ask_unsaved_changes_action(self, action: str, change_log: str) -> Optional[str]:
+        result: Dict[str, Optional[str]] = {"choice": None}
+        dialog = tk.Toplevel(self)
+        dialog.title("Unsaved Changes")
+        dialog.transient(self)
+        dialog.resizable(False, False)
+
+        body = ttk.Frame(dialog, padding=12)
+        body.grid(row=0, column=0, sticky="nsew")
+        ttk.Label(
+            body,
+            text=f"Current level has unsaved changes before {action}.",
+            font=("", 10, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(body, text="Unsaved changes:").grid(row=1, column=0, sticky="w", pady=(10, 3))
+
+        log_box = tk.Text(body, width=78, height=8, wrap="word")
+        log_box.grid(row=2, column=0, sticky="ew")
+        log_box.insert("1.0", change_log)
+        log_box.configure(state="disabled")
+
+        buttons = ttk.Frame(body)
+        buttons.grid(row=3, column=0, sticky="e", pady=(12, 0))
+
+        def choose(choice: Optional[str]) -> None:
+            result["choice"] = choice
+            dialog.destroy()
+
+        ttk.Button(buttons, text="Cancel", command=lambda: choose(None)).pack(side="right", padx=(6, 0))
+        ttk.Button(buttons, text="Discard & Proceed", command=lambda: choose("discard")).pack(side="right", padx=(6, 0))
+        ttk.Button(buttons, text="Save & Proceed", command=lambda: choose("save")).pack(side="right")
+
+        dialog.protocol("WM_DELETE_WINDOW", lambda: choose(None))
+        self._center_dialog(dialog)
+        try:
+            dialog.grab_set()
+        except tk.TclError:
+            pass
+        dialog.wait_window()
+        return result["choice"]
+
+    def _center_dialog(self, dialog: tk.Toplevel) -> None:
+        dialog.update_idletasks()
+        try:
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = self.winfo_width()
+            parent_h = self.winfo_height()
+            width = dialog.winfo_width()
+            height = dialog.winfo_height()
+            x = parent_x + max(0, (parent_w - width) // 2)
+            y = parent_y + max(0, (parent_h - height) // 2)
+            dialog.geometry(f"+{x}+{y}")
+        except tk.TclError:
+            pass
 
     def close_editor(self):
         if self.has_unsaved_changes() and not self._confirm_discard_unsaved_changes("closing the tool"):
@@ -216,7 +281,7 @@ class EditorFileActionsMixin:
         if not self._confirm_discard_unsaved_changes("loading another level"):
             return False
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8-sig") as f:
                 loaded_level = json.load(f)
             normalize_runtime_level(loaded_level)
             file_level_id = level_id if level_id is not None else self._level_id_from_path(path)
@@ -244,26 +309,80 @@ class EditorFileActionsMixin:
             return
         self._load_level_file(path)
 
-    def save_json(self):
+    def save_json(self) -> bool:
         level_id = self.selected_file_level_id()
-        self.level_var.set(str(level_id))
-        self.file_level_var.set(str(level_id))
+        folder = self.level_folder or DEFAULT_LEVEL_SAVE_DIR
+        path = os.path.join(folder, f"{level_id}.json")
+        self._prepare_level_for_save(level_id)
+        return self._save_level_to_path(path)
+
+    def _prepare_level_for_save(self, level_id: Optional[int] = None) -> None:
+        if level_id is not None:
+            self.level_var.set(str(level_id))
+            self.file_level_var.set(str(level_id))
         self.sync_basic_fields()
         self.merge_detected_mechanics()
         normalize_runtime_level(self.level)
-        folder = self.level_folder or DEFAULT_LEVEL_SAVE_DIR
-        os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, f"{level_id}.json")
+
+    def _save_level_to_path(self, path: str) -> bool:
+        path = os.path.abspath(path)
+        if not self._confirm_validation_before_save():
+            return False
+        if not self._confirm_overwrite_before_save(path):
+            return False
+
         try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.level, f, ensure_ascii=False, indent=2)
             self.current_file = path
-            self.level_folder = folder
+            self.level_folder = os.path.dirname(path)
             self._refresh_level_folder_files()
             self._mark_current_level_saved()
             messagebox.showinfo("Save", f"Saved:\n{path}")
+            return True
         except Exception as exc:
             messagebox.showerror("Save Error", str(exc))
+            return False
+
+    def _confirm_validation_before_save(self) -> bool:
+        errors, warnings = LevelValidator().validate(self.level)
+        self.render_validation_results(errors, warnings)
+        actionable_warnings = [
+            warning
+            for warning in warnings
+            if not warning.lstrip().startswith("OK:")
+        ]
+        if not errors and not actionable_warnings:
+            return True
+
+        items = [
+            *(f"ERROR: {error}" for error in errors),
+            *(f"WARNING: {warning}" for warning in actionable_warnings),
+        ]
+        shown = items[:12]
+        if len(items) > len(shown):
+            shown.append(f"... and {len(items) - len(shown)} more.")
+        details = "\n".join(f"- {item}" for item in shown)
+        return messagebox.askyesno(
+            "Level Validation",
+            "This level has validation issues:\n\n"
+            f"{details}\n\n"
+            "Save anyway?",
+        )
+
+    def _confirm_overwrite_before_save(self, path: str) -> bool:
+        if not os.path.isfile(path):
+            return True
+        if self.current_file and self._normalized_path(path) == self._normalized_path(self.current_file):
+            return True
+        return messagebox.askyesno(
+            "Overwrite Level",
+            f"This level file already exists:\n{path}\n\nOverwrite it?",
+        )
+
+    def _normalized_path(self, path: str) -> str:
+        return os.path.normcase(os.path.abspath(path))
 
     def default_level_filename(self) -> str:
         level_id = self.selected_file_level_id()
@@ -277,27 +396,14 @@ class EditorFileActionsMixin:
             initialdir=initial_dir,
             initialfile=self.default_level_filename(),
             defaultextension=".json",
-            filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
+            filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")],
+            confirmoverwrite=False,
         )
         if not path:
             return
         file_level_id = self._level_id_from_path(path)
-        if file_level_id is not None:
-            self.level_var.set(str(file_level_id))
-            self.file_level_var.set(str(file_level_id))
-        self.sync_basic_fields()
-        self.merge_detected_mechanics()
-        normalize_runtime_level(self.level)
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(self.level, f, ensure_ascii=False, indent=2)
-            self.current_file = path
-            self.level_folder = os.path.dirname(path)
-            self._refresh_level_folder_files()
-            self._mark_current_level_saved()
-            messagebox.showinfo("Save", f"Saved:\n{path}")
-        except Exception as exc:
-            messagebox.showerror("Save Error", str(exc))
+        self._prepare_level_for_save(file_level_id)
+        self._save_level_to_path(path)
 
     def record_history(self):
         self.undo_stack.append(copy.deepcopy(self.level))
@@ -337,17 +443,88 @@ class EditorFileActionsMixin:
     def open_level_tester(self):
         from .level_tester_app import open_level_tester
 
-        open_level_tester(self, self.level_folder)
+        return self._open_or_focus_tool_window(
+            "_level_tester_window",
+            lambda: open_level_tester(self, self.level_folder),
+        )
 
     def open_level_generator(self):
         from .level_generator_window import open_level_generator
 
-        open_level_generator(self)
+        return self._open_or_focus_tool_window(
+            "_level_generator_window",
+            lambda: open_level_generator(self),
+        )
 
     def open_color_replace_tool(self):
         from .color_replace_tool import open_color_replace_tool
 
-        open_color_replace_tool(self, self.level_folder, self.on_color_replace_tool_changed)
+        return self._open_or_focus_tool_window(
+            "_color_replace_window",
+            lambda: open_color_replace_tool(
+                self,
+                self.level_folder,
+                self.on_color_replace_tool_changed,
+            ),
+        )
+
+    def _open_or_focus_tool_window(
+        self,
+        attribute_name: str,
+        factory: Callable[[], tk.Toplevel],
+    ) -> tk.Toplevel:
+        window = getattr(self, attribute_name, None)
+        if self._tool_window_exists(window):
+            self._bring_tool_window_to_front(window)
+            return window
+
+        window = factory()
+        setattr(self, attribute_name, window)
+        window.bind(
+            "<Destroy>",
+            lambda event, name=attribute_name, target=window: self._on_tool_window_destroyed(
+                name,
+                target,
+                event.widget,
+            ),
+            add="+",
+        )
+        self._bring_tool_window_to_front(window)
+        return window
+
+    def _tool_window_exists(self, window: Optional[tk.Toplevel]) -> bool:
+        if window is None:
+            return False
+        try:
+            return bool(window.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _bring_tool_window_to_front(self, window: tk.Toplevel) -> None:
+        try:
+            window.deiconify()
+            window.lift()
+            window.attributes("-topmost", True)
+            window.focus_force()
+            window.after_idle(lambda target=window: self._release_tool_window_topmost(target))
+        except tk.TclError:
+            pass
+
+    def _release_tool_window_topmost(self, window: tk.Toplevel) -> None:
+        try:
+            if window.winfo_exists():
+                window.attributes("-topmost", False)
+        except tk.TclError:
+            pass
+
+    def _on_tool_window_destroyed(
+        self,
+        attribute_name: str,
+        window: tk.Toplevel,
+        destroyed_widget: tk.Misc,
+    ) -> None:
+        if destroyed_widget is window and getattr(self, attribute_name, None) is window:
+            setattr(self, attribute_name, None)
 
     def on_color_replace_tool_changed(self, changed_paths: List[str]):
         if not self.current_file:
@@ -430,6 +607,80 @@ class EditorFileActionsMixin:
         detected = detect_mechanics(self.level)
         self.mechanics_var.set(", ".join(detected))
         self.refresh_json_preview()
+
+    def auto_detect_mechanics_for_folder(self):
+        if self.has_unsaved_changes():
+            if not self._confirm_discard_unsaved_changes("auto-detecting mechanics for the folder"):
+                return
+
+        self._refresh_level_folder_files()
+        if not os.path.isdir(self.level_folder):
+            messagebox.showwarning("Auto-detect Mechanics", "Choose a folder with level JSON files first.")
+            return
+
+        paths = [
+            os.path.join(self.level_folder, f"{level_id}.json")
+            for level_id in self.level_file_ids
+        ]
+        if not paths:
+            messagebox.showwarning("Auto-detect Mechanics", "No numeric JSON level files found in this folder.")
+            return
+
+        updated = 0
+        unchanged = 0
+        failures: List[str] = []
+        current_path = self._normalized_path(self.current_file) if self.current_file else None
+        current_detected: Optional[List[str]] = None
+
+        for path in paths:
+            changed, detected, error = self._auto_detect_mechanics_for_level_file(path)
+            if error is not None:
+                failures.append(f"{os.path.basename(path)}: {error}")
+                continue
+            if changed:
+                updated += 1
+            else:
+                unchanged += 1
+            if current_path and self._normalized_path(path) == current_path:
+                current_detected = detected
+
+        if current_detected is not None:
+            self.level["mechanics"] = current_detected
+            self.mechanics_var.set(", ".join(current_detected))
+            self._mark_current_level_saved()
+            self.refresh_json_preview()
+
+        self._refresh_level_folder_files()
+        summary = (
+            f"Processed {len(paths)} file(s).\n"
+            f"Updated: {updated}\n"
+            f"Unchanged: {unchanged}"
+        )
+        if failures:
+            shown = "\n".join(failures[:8])
+            extra = "" if len(failures) <= 8 else f"\n... and {len(failures) - 8} more."
+            messagebox.showwarning(
+                "Auto-detect Mechanics",
+                f"{summary}\nFailed: {len(failures)}\n\n{shown}{extra}",
+            )
+        else:
+            messagebox.showinfo("Auto-detect Mechanics", summary)
+
+    def _auto_detect_mechanics_for_level_file(self, path: str) -> Tuple[bool, List[str], Optional[str]]:
+        try:
+            with open(path, "r", encoding="utf-8-sig") as file:
+                level = json.load(file)
+            if not isinstance(level, dict):
+                return False, [], "JSON root is not an object"
+            detected = detect_mechanics(level)
+            if level.get("mechanics", []) == detected:
+                return False, detected, None
+            level["mechanics"] = detected
+            with open(path, "w", encoding="utf-8") as file:
+                json.dump(level, file, ensure_ascii=False, indent=2)
+            return True, detected, None
+        except Exception as exc:
+            return False, [], str(exc)
 
     def merge_detected_mechanics(self):
         authored = self.level.get("mechanics", []) or []

@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .constants import TRAY_ICE_DEFAULT_HP
 from .level_data import normalize_runtime_level
 
 CONVEYOR_SLOTS = 30
@@ -116,7 +117,70 @@ class GameState:
     lost: bool = False
 
     def clone(self) -> "GameState":
-        return copy.deepcopy(self)
+        cells = []
+        for cell in self.cells:
+            shooter = None
+            if cell.shooter is not None:
+                shooter = ShooterState(
+                    color=cell.shooter.color,
+                    capacity=cell.shooter.capacity,
+                    shooter_id=cell.shooter.shooter_id,
+                    ice_hp=cell.shooter.ice_hp,
+                )
+            queue = [
+                ShooterState(
+                    color=queued.color,
+                    capacity=queued.capacity,
+                    shooter_id=queued.shooter_id,
+                    ice_hp=queued.ice_hp,
+                )
+                for queued in cell.queue
+            ]
+            cells.append(
+                CellState(
+                    type=cell.type,
+                    shooter=shooter,
+                    output_direction=cell.output_direction,
+                    queue=queue,
+                )
+            )
+
+        gates = [
+            [
+                TrayState(
+                    layers=[list(layer) for layer in tray.layers],
+                    ice_hp=tray.ice_hp,
+                )
+                for tray in gate
+            ]
+            for gate in self.gates
+        ]
+        return GameState(
+            rows=self.rows,
+            cols=self.cols,
+            cells=cells,
+            gates=gates,
+            base_obstacle_blocked=self.base_obstacle_blocked,
+            obstacle_blocked=self.obstacle_blocked,
+            ice_blocks=[
+                IceBlockState(cells=ice_block.cells, hp=ice_block.hp)
+                for ice_block in self.ice_blocks
+            ],
+            lock_bars=[
+                LockBarState(
+                    cells=lock_bar.cells,
+                    trigger=lock_bar.trigger,
+                    active=lock_bar.active,
+                )
+                for lock_bar in self.lock_bars
+            ],
+            connected_groups=self.connected_groups,
+            conveyor=list(self.conveyor),
+            hopper=list(self.hopper),
+            steps=self.steps,
+            clicks=list(self.clicks),
+            lost=self.lost,
+        )
 
     def key(self) -> Tuple[Any, ...]:
         return (
@@ -298,7 +362,7 @@ class BallDropSimulator:
         ice_hp = 0
         for modifier in tray.get("modifiers", []) or []:
             if modifier.get("type") == "Ice":
-                ice_hp = max(ice_hp, int(modifier.get("hp", 3)))
+                ice_hp = max(ice_hp, int(modifier.get("hp", TRAY_ICE_DEFAULT_HP)))
         return ice_hp
 
     def _parse_connected_groups(self, grid: Dict[str, Any]) -> Tuple[Tuple[str, ...], ...]:
@@ -412,16 +476,21 @@ class BallDropSimulator:
                 return False
         state.clicks.append(ClickAction(row, col, shooter.color))
         group_members = self._connected_group_member_indexes(state, shooter)
+        released_balls = 0
         if group_members:
             ordered_members = [index] + [member_index for member_index in group_members if member_index != index]
             for member_index in ordered_members:
                 member = state.cells[member_index]
                 if member.type == "Shooter" and member.shooter:
+                    released_balls += member.shooter.capacity
                     state.hopper.extend([member.shooter.color] * member.shooter.capacity)
                     state.cells[member_index] = CellState("Empty")
         else:
+            released_balls = shooter.capacity
             state.hopper.extend([shooter.color] * shooter.capacity)
             state.cells[index] = CellState("Empty")
+        # Ice progress is awarded when a cleared shooter releases its balls.
+        self.damage_ice(state, released_balls)
         self.refresh_obstacle_blocking(state)
         self.settle_tunnels(state)
         self.refresh_obstacle_blocking(state)
@@ -573,8 +642,6 @@ class BallDropSimulator:
         tray = state.gates[gate_index][0]
         layer = tray.layers[0]
         layer[1] -= 1
-        # Ice Shooter and IceBlock both count every ball accepted by a tray.
-        self.decrement_ice(state)
         self.decrement_adjacent_tray_ice(state, gate_index)
         if layer[1] > 0:
             return
@@ -583,16 +650,22 @@ class BallDropSimulator:
             state.gates[gate_index].pop(0)
 
     def decrement_ice(self, state: GameState) -> None:
+        self.damage_ice(state, 1)
+
+    def damage_ice(self, state: GameState, amount: int) -> None:
+        amount = max(0, int(amount))
+        if amount <= 0:
+            return
         for cell in state.cells:
             if cell.type == "Shooter" and cell.shooter and cell.shooter.ice_hp > 0:
-                cell.shooter.ice_hp -= 1
+                cell.shooter.ice_hp = max(0, cell.shooter.ice_hp - amount)
             if cell.type == "Tunnel":
                 for shooter in cell.queue:
                     if shooter.ice_hp > 0:
-                        shooter.ice_hp -= 1
+                        shooter.ice_hp = max(0, shooter.ice_hp - amount)
         for ice_block in state.ice_blocks:
             if ice_block.hp > 0:
-                ice_block.hp -= 1
+                ice_block.hp = max(0, ice_block.hp - amount)
         self.refresh_obstacle_blocking(state)
 
     def decrement_adjacent_tray_ice(self, state: GameState, gate_index: int) -> None:
@@ -637,13 +710,29 @@ class BallDropSimulator:
             and not self.is_dead(state)
             and state.steps < max_steps
         ):
-            if len(state.hopper) < HOPPER_CLICK_LIMIT and self.active_shooters(state):
-                return
+            active = self.active_shooters(state)
+            if len(state.hopper) < HOPPER_CLICK_LIMIT and active:
+                if not self._should_wait_for_in_flight_balls(state, active):
+                    return
             before_key = state.key()
             self.step(state)
             if state.key() == before_key and not self.active_shooters(state):
                 state.lost = True
                 return
+
+    def _should_wait_for_in_flight_balls(
+        self,
+        state: GameState,
+        active: Sequence[Tuple[int, int, ShooterState]],
+    ) -> bool:
+        needed = set(self.front_gate_colors(state))
+        if not needed:
+            return False
+        if any(shooter.color in needed for _row, _col, shooter in active):
+            return False
+        in_flight = set(state.hopper)
+        in_flight.update(ball for ball in state.conveyor if ball is not None)
+        return bool(needed & in_flight)
 
     def _offset(self, row: int, col: int, direction: str) -> Optional[Tuple[int, int]]:
         if direction == "Up":
