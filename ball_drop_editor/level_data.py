@@ -13,6 +13,7 @@ from .constants import (
     MECHANIC_ID_ALIASES,
     MECHANIC_IDS,
     SHOOTER_GROUP_TYPES,
+    TRAY_ICE_DEFAULT_HP,
 )
 from .utils import safe_int
 
@@ -102,7 +103,7 @@ def make_shooter_modifiers(
 
 def make_tray_modifiers(
     ice: bool = False,
-    ice_hp: int = 3,
+    ice_hp: int = TRAY_ICE_DEFAULT_HP,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if ice:
@@ -642,5 +643,5 @@ def _normalize_tray_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
     modifier_type = modifier.get("type")
     normalized = {"type": modifier_type}
     if modifier_type == "Ice":
-        normalized["hp"] = max(1, safe_int(str(modifier.get("hp", 3)), 3))
+        normalized["hp"] = max(1, safe_int(str(modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
     return normalized

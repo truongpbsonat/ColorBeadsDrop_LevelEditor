@@ -69,6 +69,9 @@ class BallDropLevelEditor(
         self._active_color_target = "cell"
         self._syncing_cell_editor = False
         self._syncing_gate_direct_controls = False
+        self._level_tester_window: Optional[tk.Toplevel] = None
+        self._level_generator_window: Optional[tk.Toplevel] = None
+        self._color_replace_window: Optional[tk.Toplevel] = None
 
         self._init_level_meta_vars()
         self._load_icon_images()

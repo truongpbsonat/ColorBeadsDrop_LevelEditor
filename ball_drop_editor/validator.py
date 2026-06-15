@@ -12,6 +12,7 @@ from .constants import (
     RUNTIME_ENTITY_TYPES,
     SHOOTER_GROUP_TYPES,
     SHOOTER_MODIFIER_TYPES,
+    TRAY_ICE_DEFAULT_HP,
     TRAY_MODIFIER_TYPES,
 )
 from .level_data import detect_mechanics
@@ -216,7 +217,7 @@ class LevelValidator:
             mtype = modifier.get("type")
             if mtype not in TRAY_MODIFIER_TYPES:
                 errors.append(f"Tray modifier type không hỗ trợ: {mtype}.")
-            if mtype == "Ice" and modifier.get("hp", 3) <= 0:
+            if mtype == "Ice" and modifier.get("hp", TRAY_ICE_DEFAULT_HP) <= 0:
                 errors.append(f"Ice tray {tray_id} hp phải > 0.")
 
     def _validate_obstacles_legacy(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:

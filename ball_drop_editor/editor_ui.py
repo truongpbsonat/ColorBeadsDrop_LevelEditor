@@ -6,7 +6,7 @@ from tkinter import ttk
 from typing import Optional
 
 from .color_utils import SELECTABLE_BALL_COLORS, color_text_hex
-from .constants import COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES
+from .constants import COLOR_HEX, DIRECTIONS, ENTITY_TYPES, LEVEL_DIFFICULTIES, TRAY_ICE_DEFAULT_HP
 from .editor_paths import ICON_DIR
 
 
@@ -133,7 +133,10 @@ class EditorUiMixin:
         mechanics_entry.bind("<Return>", lambda e: self.refresh_json_preview())
         mechanics_entry.bind("<FocusOut>", lambda e: self.refresh_json_preview())
         ttk.Button(frame, text="Auto-detect mechanics", command=self.auto_detect_mechanics).grid(
-            row=1, column=6, columnspan=2, padx=(0, 8), pady=(5, 1), sticky="w"
+            row=1, column=6, columnspan=2, padx=(0, 4), pady=(5, 1), sticky="w"
+        )
+        ttk.Button(frame, text="Auto-detect folder", command=self.auto_detect_mechanics_for_folder).grid(
+            row=1, column=8, columnspan=2, padx=(0, 8), pady=(5, 1), sticky="w"
         )
 
     def _load_icon_images(self):
@@ -510,7 +513,7 @@ class EditorUiMixin:
         self.add_layer_enabled_var = tk.BooleanVar(value=False)
         self.selected_tray_id_var = tk.StringVar()
         self.selected_tray_ice_modifier = tk.BooleanVar(value=False)
-        self.selected_tray_ice_hp = tk.IntVar(value=3)
+        self.selected_tray_ice_hp = tk.IntVar(value=TRAY_ICE_DEFAULT_HP)
 
         tray_buttons = ttk.Frame(controls)
         tray_buttons.grid(row=1, column=0, sticky="ew")

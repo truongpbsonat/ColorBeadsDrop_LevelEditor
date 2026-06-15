@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from ball_drop_editor.level_tester_core import BallDropSimulator
+from ball_drop_editor.level_tester_core import BallDropSimulator, DeepSearchSolver
 from ball_drop_editor.level_tester_score import DifficultyMetrics, SolverScoreAdapter
 
 
@@ -119,12 +119,12 @@ class DifficultyScoringTests(unittest.TestCase):
 
         self.assertTrue(state.obstacle_blocked[0][0])
         self.assertEqual(state.ice_blocks[0].hp, 1)
-        simulator._consume_gate_ball(state, 0)
+        simulator.damage_ice(state, 1)
         self.assertFalse(state.obstacle_blocked[0][0])
         self.assertTrue(simulator.click(state, 0, 0))
         self.assertTrue(simulator.is_passable(state, 0, 0))
 
-    def test_ice_shooter_loses_one_hp_for_each_ball_entering_a_tray(self) -> None:
+    def test_ice_shooter_loses_hp_for_each_ball_released_by_a_shooter(self) -> None:
         level = make_layout_level([["Blue"]])
         level["grid"] = {
             "rows": 1,
@@ -139,7 +139,7 @@ class DifficultyScoringTests(unittest.TestCase):
                         "shooter": {
                             "shooterId": "s_blue",
                             "colorId": "Blue",
-                            "capacity": 3,
+                            "capacity": 9,
                             "modifiers": [],
                         },
                     },
@@ -153,8 +153,8 @@ class DifficultyScoringTests(unittest.TestCase):
                         "shooter": {
                             "shooterId": "s_red",
                             "colorId": "Red",
-                            "capacity": 3,
-                            "modifiers": [{"type": "Ice", "hp": 3}],
+                            "capacity": 9,
+                            "modifiers": [{"type": "Ice", "hp": 9}],
                         },
                     },
                 },
@@ -166,9 +166,78 @@ class DifficultyScoringTests(unittest.TestCase):
         state = simulator.initial_state()
         frozen = state.cells[1].shooter
 
-        for expected_hp in (2, 1, 0):
-            simulator._consume_gate_ball(state, 0)
-            self.assertEqual(frozen.ice_hp, expected_hp)
+        self.assertTrue(simulator.click(state, 0, 0))
+        self.assertEqual(frozen.ice_hp, 0)
+
+    def test_solver_unlocks_ice_shooter_when_blocking_shooter_is_cleared(self) -> None:
+        level = make_layout_level([["Blue", "Green", "White"]])
+        for tray in level["gateSystem"]["gates"][0]["trayQueue"]:
+            tray["layers"][0]["requiredCount"] = 9
+        level["grid"] = {
+            "rows": 1,
+            "columns": 3,
+            "cells": [
+                {
+                    "row": 0,
+                    "column": 0,
+                    "entity": {
+                        "type": "Shooter",
+                        "blocksPath": True,
+                        "shooter": {
+                            "shooterId": "s_blue",
+                            "colorId": "Blue",
+                            "capacity": 9,
+                            "modifiers": [],
+                        },
+                    },
+                },
+                {
+                    "row": 0,
+                    "column": 1,
+                    "entity": {
+                        "type": "Shooter",
+                        "blocksPath": True,
+                        "shooter": {
+                            "shooterId": "s_green",
+                            "colorId": "Green",
+                            "capacity": 9,
+                            "modifiers": [{"type": "Ice", "hp": 9}],
+                        },
+                    },
+                },
+                {
+                    "row": 0,
+                    "column": 2,
+                    "entity": {
+                        "type": "Shooter",
+                        "blocksPath": True,
+                        "shooter": {
+                            "shooterId": "s_white",
+                            "colorId": "White",
+                            "capacity": 9,
+                            "modifiers": [],
+                        },
+                    },
+                },
+            ],
+            "obstacles": [],
+            "shooterGroups": [],
+        }
+        simulator = BallDropSimulator(level)
+        state = simulator.initial_state()
+
+        self.assertTrue(simulator.click(state, 0, 0))
+        frozen = state.cells[1].shooter
+        self.assertIsNotNone(frozen)
+        self.assertEqual(frozen.ice_hp, 0)
+        self.assertFalse(state.lost)
+        self.assertIn(
+            "Green",
+            [shooter.color for _row, _col, shooter in simulator.active_shooters(state)],
+        )
+
+        result = DeepSearchSolver(simulator, time_budget=2.0).solve_file("<ice-wait>")
+        self.assertEqual(result.status, "PASS")
 
     def test_larger_ice_count_adds_more_obstacle_pressure(self) -> None:
         adapter = SolverScoreAdapter()
