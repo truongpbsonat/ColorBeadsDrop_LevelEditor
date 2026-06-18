@@ -44,6 +44,27 @@ GRID_OBSTACLE_SHAPE_TYPES = ["Rect", "CustomCells", "Plus", "LineHorizontal", "L
 SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]
 GAME_MODES = ["Classic"]
 LEVEL_DIFFICULTIES = ["Normal", "Hard", "SuperHard"]
+LEVEL_DIFFICULTY_LABELS = {
+    "Normal": "Normal",
+    "Hard": "Hard",
+    "SuperHard": "Super Hard",
+}
+
+
+def canonical_level_difficulty(value: object) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    compact = "".join(char for char in text.lower() if char.isalnum())
+    lookup = {
+        "".join(char for char in difficulty.lower() if char.isalnum()): difficulty
+        for difficulty in LEVEL_DIFFICULTIES
+    }
+    return lookup.get(compact)
+
+
+def normalize_level_difficulty(value: object, default: str = "Normal") -> str:
+    return canonical_level_difficulty(value) or default
 
 # Canonical mechanic ids. Keep in sync with BallDropMechanicIds.cs and the MechanicCatalogConfig asset.
 MECHANIC_IDS = [
