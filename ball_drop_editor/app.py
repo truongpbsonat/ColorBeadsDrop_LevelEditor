@@ -72,6 +72,7 @@ class BallDropLevelEditor(
         self._level_tester_window: Optional[tk.Toplevel] = None
         self._level_generator_window: Optional[tk.Toplevel] = None
         self._color_replace_window: Optional[tk.Toplevel] = None
+        self._difficulty_tool_window: Optional[tk.Toplevel] = None
 
         self._init_level_meta_vars()
         self._load_icon_images()

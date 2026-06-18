@@ -468,6 +468,18 @@ class EditorFileActionsMixin:
             ),
         )
 
+    def open_difficulty_tool(self):
+        from .difficulty_tool import open_difficulty_tool
+
+        return self._open_or_focus_tool_window(
+            "_difficulty_tool_window",
+            lambda: open_difficulty_tool(
+                self,
+                self.level_folder,
+                self.on_difficulty_tool_changed,
+            ),
+        )
+
     def _open_or_focus_tool_window(
         self,
         attribute_name: str,
@@ -542,6 +554,28 @@ class EditorFileActionsMixin:
                 "Color Tool",
                 "The currently loaded level was changed on disk, but this editor still has unsaved changes.\n\n"
                 "Save or reload the current level before saving again, otherwise the disk color change may be overwritten.",
+            )
+            self._refresh_level_folder_files()
+            return
+
+        self._load_level_file(self.current_file, level_id=self._level_id_from_path(self.current_file))
+
+    def on_difficulty_tool_changed(self, changed_paths: List[str]):
+        if not self.current_file:
+            self._refresh_level_folder_files()
+            return
+
+        current_path = os.path.normcase(os.path.abspath(self.current_file))
+        changed = {os.path.normcase(os.path.abspath(path)) for path in changed_paths}
+        if current_path not in changed:
+            self._refresh_level_folder_files()
+            return
+
+        if self.has_unsaved_changes():
+            messagebox.showwarning(
+                "Difficulty Tool",
+                "The currently loaded level was changed on disk, but this editor still has unsaved changes.\n\n"
+                "Save or reload the current level before saving again, otherwise the disk difficulty change may be overwritten.",
             )
             self._refresh_level_folder_files()
             return

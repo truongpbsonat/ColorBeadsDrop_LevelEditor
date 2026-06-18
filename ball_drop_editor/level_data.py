@@ -14,6 +14,7 @@ from .constants import (
     MECHANIC_IDS,
     SHOOTER_GROUP_TYPES,
     TRAY_ICE_DEFAULT_HP,
+    normalize_level_difficulty,
 )
 from .utils import safe_int
 
@@ -50,7 +51,7 @@ def make_empty_level(rows: int = 4, cols: int = 4, gate_count: int = 4) -> Dict[
 
 def normalize_runtime_level(level: Dict[str, Any]) -> Dict[str, Any]:
     level["gameMode"] = _enum_name(level.get("gameMode"), GAME_MODES, "Classic")
-    level["difficulty"] = _enum_name(level.get("difficulty"), LEVEL_DIFFICULTIES, "Normal")
+    level["difficulty"] = normalize_level_difficulty(level.get("difficulty"), "Normal")
     level["level"] = max(1, safe_int(str(level.get("level", level.get("levelId", 1))), 1))
     level["category"] = max(0, safe_int(str(level.get("category", 0)), 0))
     level["time"] = max(0, safe_int(str(level.get("time", 60)), 60))

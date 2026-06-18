@@ -96,7 +96,7 @@ class EditorUiMixin:
     def _build_toolbar(self, parent):
         frame = ttk.LabelFrame(parent, text="File / Level", padding=(6, 5))
         frame.grid(row=0, column=0, sticky="ew")
-        for col in range(19):
+        for col in range(20):
             frame.columnconfigure(col, weight=0)
         frame.columnconfigure(16, weight=1)
 
@@ -124,8 +124,9 @@ class EditorUiMixin:
         ttk.Label(frame, textvariable=self.level_save_status_var, width=15, anchor="w").grid(row=0, column=14, padx=(0, 8), pady=1, sticky="w")
         ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
         ttk.Button(frame, text="Color Tool", command=self.open_color_replace_tool, width=10).grid(row=0, column=16, padx=(8, 0), pady=1, sticky="e")
-        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
-        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=18, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Diff Tool", command=self.open_difficulty_tool, width=9).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=18, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=19, padx=(8, 0), pady=1, sticky="e")
 
         ttk.Label(frame, text="Mechanics").grid(row=1, column=0, padx=(0, 3), pady=(5, 1), sticky="w")
         mechanics_entry = ttk.Entry(frame, textvariable=self.mechanics_var)
