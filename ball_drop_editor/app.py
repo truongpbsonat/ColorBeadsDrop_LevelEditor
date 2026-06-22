@@ -41,6 +41,8 @@ class BallDropLevelEditor(
         self.current_file: Optional[str] = None
         self.saved_level_snapshot = copy.deepcopy(self.level)
         self.level_folder = DEFAULT_LEVEL_SAVE_DIR
+        self.level_folders: List[str] = []
+        self._init_folder_history()
         self.level_file_ids: List[int] = []
         self.selected_cell: Optional[Tuple[int, int]] = None
         self.selected_grid_cells: Set[Tuple[int, int]] = set()

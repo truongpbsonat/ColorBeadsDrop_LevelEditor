@@ -648,6 +648,15 @@ class EditorCellsMixin:
         else:
             self.selected_grid_cells.clear()
 
+        # Selecting a grid cell makes the cell the active edit target. Drop any tray
+        # selection so a stray layer apply (e.g. a count-spinbox FocusOut) cannot push
+        # the shooter color into a previously selected tray.
+        had_tray_selection = bool(self.selected_trays) or self.selected_tray_index is not None
+        self.selected_trays.clear()
+        self.selected_tray_index = None
+        if had_tray_selection and hasattr(self, "draw_gate_preview"):
+            self.draw_gate_preview()
+
         self._update_selected_label()
         if paint:
             self.paint_cell(row, col)

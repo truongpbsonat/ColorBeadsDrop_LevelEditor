@@ -14,7 +14,7 @@ class EditorStateMixin:
         self.time_var = tk.IntVar(value=60)
         self.level_name_var = tk.StringVar(value="New Level")
         self.mechanics_var = tk.StringVar(value="")
-        self.level_folder_var = tk.StringVar(value=self._level_folder_label())
+        self.active_folder_var = tk.StringVar(value=self._level_folder_label())
         self.level_file_status_var = tk.StringVar(value="No file loaded")
         self.level_save_status_var = tk.StringVar(value="Status: Saved")
         self.rows_var = tk.IntVar(value=4)

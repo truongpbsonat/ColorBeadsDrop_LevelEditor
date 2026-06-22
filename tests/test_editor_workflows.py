@@ -49,11 +49,16 @@ class WorkflowHarness(EditorFileActionsMixin):
         self.level = {}
         self.current_file = None
         self.level_folder = ""
+        self.level_folders = []
         self.rendered_validation = None
         self.saved = False
 
     def render_validation_results(self, errors, warnings):
         self.rendered_validation = (errors, warnings)
+
+    def _register_folder(self, path, make_active=False):
+        if make_active:
+            self.level_folder = os.path.abspath(path)
 
     def _refresh_level_folder_files(self):
         pass

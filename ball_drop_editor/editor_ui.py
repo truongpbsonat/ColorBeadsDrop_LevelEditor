@@ -109,7 +109,9 @@ class EditorUiMixin:
         ttk.Button(frame, text="Next", command=self.load_next_level, width=5).grid(row=0, column=4, padx=2, pady=1)
         ttk.Button(frame, text="Load", command=self.load_selected_level, width=5).grid(row=0, column=5, padx=(2, 8), pady=1)
 
-        ttk.Label(frame, textvariable=self.level_folder_var, width=14, anchor="w").grid(row=0, column=6, padx=(4, 8), pady=1, sticky="w")
+        self.folder_combo = ttk.Combobox(frame, textvariable=self.active_folder_var, state="readonly", width=16)
+        self.folder_combo.grid(row=0, column=6, padx=(4, 8), pady=1, sticky="w")
+        self.folder_combo.bind("<<ComboboxSelected>>", self._on_folder_combo_selected)
 
         ttk.Label(frame, text="Difficulty").grid(row=0, column=7, padx=(0, 3), pady=1, sticky="w")
         difficulty_combo = ttk.Combobox(frame, textvariable=self.difficulty_var, values=LEVEL_DIFFICULTIES, state="readonly", width=10)
