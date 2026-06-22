@@ -7,7 +7,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .editor_paths import DEFAULT_LEVEL_SAVE_DIR
+from .editor_paths import (
+    DEFAULT_LEVEL_SAVE_DIR,
+    RECENT_FOLDERS_LIMIT,
+    load_recent_folders,
+    save_recent_folders,
+)
 from .level_data import (
     delete_grid_column,
     delete_grid_row,
@@ -211,7 +216,7 @@ class EditorFileActionsMixin:
         self._update_level_file_status()
 
     def _update_level_file_status(self):
-        self.level_folder_var.set(self._level_folder_label())
+        self._refresh_folder_combobox()
         loaded = f"Loaded: {os.path.basename(self.current_file)}" if self.current_file else "No file loaded"
         if self.level_file_ids:
             count = len(self.level_file_ids)
@@ -224,6 +229,59 @@ class EditorFileActionsMixin:
         initial_dir = self.level_folder if os.path.isdir(self.level_folder) else DEFAULT_LEVEL_SAVE_DIR
         path = filedialog.askdirectory(initialdir=initial_dir, title="Choose folder with level JSON files")
         if not path:
+            return
+        self._register_folder(path, make_active=True)
+        self.current_file = None
+        self._refresh_level_folder_files()
+
+    def _init_folder_history(self) -> None:
+        self.level_folders = load_recent_folders()
+        active = os.path.abspath(self.level_folder)
+        if not any(self._normalized_path(folder) == self._normalized_path(active) for folder in self.level_folders):
+            self.level_folders.insert(0, active)
+        del self.level_folders[RECENT_FOLDERS_LIMIT:]
+
+    def _register_folder(self, path: str, make_active: bool = False) -> None:
+        if not path:
+            return
+        path = os.path.abspath(path)
+        norm = self._normalized_path(path)
+        self.level_folders = [folder for folder in self.level_folders if self._normalized_path(folder) != norm]
+        self.level_folders.insert(0, path)
+        del self.level_folders[RECENT_FOLDERS_LIMIT:]
+        save_recent_folders(self.level_folders)
+        if make_active:
+            self.level_folder = path
+        self._refresh_folder_combobox()
+
+    def _folder_display_label(self, path: str, all_paths: List[str]) -> str:
+        base = os.path.basename(os.path.normpath(path)) or path
+        collisions = [
+            other for other in all_paths
+            if (os.path.basename(os.path.normpath(other)) or other) == base
+        ]
+        if len(collisions) > 1:
+            parent = os.path.basename(os.path.dirname(os.path.normpath(path)))
+            if parent:
+                return f"{parent}/{base}"
+        return base
+
+    def _refresh_folder_combobox(self) -> None:
+        if not hasattr(self, "folder_combo"):
+            return
+        paths = list(self.level_folders)
+        self._folder_display_to_path = {}
+        displays: List[str] = []
+        for folder in paths:
+            label = self._folder_display_label(folder, paths)
+            self._folder_display_to_path[label] = folder
+            displays.append(label)
+        self.folder_combo["values"] = displays
+        self.active_folder_var.set(self._folder_display_label(self.level_folder, paths))
+
+    def _on_folder_combo_selected(self, event=None) -> None:
+        path = getattr(self, "_folder_display_to_path", {}).get(self.active_folder_var.get())
+        if not path or self._normalized_path(path) == self._normalized_path(self.level_folder):
             return
         self.level_folder = path
         self.current_file = None
@@ -289,7 +347,7 @@ class EditorFileActionsMixin:
                 loaded_level["level"] = file_level_id
             self.level = loaded_level
             self.current_file = path
-            self.level_folder = os.path.dirname(path)
+            self._register_folder(os.path.dirname(path), make_active=True)
             self.undo_stack.clear()
             self.redo_stack.clear()
             self._refresh_all()
@@ -324,7 +382,7 @@ class EditorFileActionsMixin:
         self.merge_detected_mechanics()
         normalize_runtime_level(self.level)
 
-    def _save_level_to_path(self, path: str) -> bool:
+    def _save_level_to_path(self, path: str, switch_active_folder: bool = True) -> bool:
         path = os.path.abspath(path)
         if not self._confirm_validation_before_save():
             return False
@@ -336,7 +394,7 @@ class EditorFileActionsMixin:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.level, f, ensure_ascii=False, indent=2)
             self.current_file = path
-            self.level_folder = os.path.dirname(path)
+            self._register_folder(os.path.dirname(path), make_active=switch_active_folder)
             self._refresh_level_folder_files()
             self._mark_current_level_saved()
             messagebox.showinfo("Save", f"Saved:\n{path}")
@@ -403,7 +461,7 @@ class EditorFileActionsMixin:
             return
         file_level_id = self._level_id_from_path(path)
         self._prepare_level_for_save(file_level_id)
-        self._save_level_to_path(path)
+        self._save_level_to_path(path, switch_active_folder=False)
 
     def record_history(self):
         self.undo_stack.append(copy.deepcopy(self.level))

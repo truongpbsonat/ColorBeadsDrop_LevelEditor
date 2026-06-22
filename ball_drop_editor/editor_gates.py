@@ -429,6 +429,13 @@ class EditorGateMixin:
 
     def _select_tray_area(self, gate_index: int, tray_index: int, additive: bool):
         self._active_color_target = "tray"
+        # Selecting a tray makes the tray the active edit target. Drop any grid-cell
+        # selection so a stray cell apply cannot push the tray color into a shooter.
+        had_cell_selection = self.selected_cell is not None or bool(self.selected_grid_cells)
+        self.selected_cell = None
+        self.selected_grid_cells.clear()
+        if had_cell_selection and hasattr(self, "_refresh_grid_button_states"):
+            self._refresh_grid_button_states()
         tray_ref = (gate_index, tray_index)
         if additive:
             if tray_ref in self.selected_trays and len(self.selected_trays) > 1:
