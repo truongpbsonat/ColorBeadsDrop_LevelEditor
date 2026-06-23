@@ -47,14 +47,13 @@ class EditorUiMixin:
         utility_side = ttk.Frame(self, padding=(0, 8, 8, 8), width=300)
         utility_side.grid(row=1, column=2, sticky="ns")
         utility_side.grid_propagate(False)
-        utility_side.rowconfigure(0, weight=6)
-        utility_side.rowconfigure(1, weight=4)
+        utility_side.rowconfigure(0, weight=1)
         utility_side.columnconfigure(0, weight=1)
         self._build_validation_panel(utility_side)
 
-        json_holder = ttk.LabelFrame(utility_side, text="JSON Preview", padding=6)
-        json_holder.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
-        self._build_json_preview(json_holder)
+        # JSON Preview tạm thời ẩn. json_text vẫn được tạo (off-screen) để
+        # refresh_json_preview tiếp tục hoạt động bình thường.
+        self._build_json_preview(utility_side)
 
     def _build_scrollable_sidebar(self, parent):
         self.left_canvas = tk.Canvas(parent, width=340, highlightthickness=0)
@@ -504,6 +503,10 @@ class EditorUiMixin:
 
         self.gate_count_var = tk.IntVar(value=4)
         self.max_visible_var = tk.IntVar(value=4)
+        # False = hiển thị theo cột (tray neo ở trên).
+        # True  = hiển thị giống game thực tế (tray luôn đùn về phía cổng/đáy).
+        # Mặc định bật để khớp với cách hiển thị trong game.
+        self.tray_stack_to_gate_var = tk.BooleanVar(value=True)
 
         ttk.Label(top, text="Gate Count").grid(row=0, column=0, sticky="w")
         ttk.Spinbox(top, from_=1, to=12, textvariable=self.gate_count_var, width=4).grid(row=0, column=1, sticky="w", padx=(3, 6))
@@ -512,6 +515,12 @@ class EditorUiMixin:
 
         ttk.Button(top, text="Apply Count", command=self.apply_gate_system, width=11).grid(row=1, column=0, columnspan=2, sticky="w", pady=(3, 0))
         ttk.Button(top, text="Refresh Gate", command=self.apply_gate_ui, width=12).grid(row=1, column=2, columnspan=2, sticky="w", padx=(4, 0), pady=(3, 0))
+        ttk.Checkbutton(
+            top,
+            text="Dồn tray về cổng",
+            variable=self.tray_stack_to_gate_var,
+            command=self.draw_gate_preview,
+        ).grid(row=1, column=4, sticky="e", padx=(8, 0), pady=(3, 0))
 
         preview_holder = ttk.LabelFrame(parent, text="Gate Direct Edit", padding=8)
         preview_holder.grid(row=1, column=0, sticky="nsew")
@@ -657,18 +666,19 @@ class EditorUiMixin:
             )
 
     def _build_json_preview(self, parent):
-        parent.rowconfigure(0, weight=1)
-        parent.columnconfigure(0, weight=1)
+        # JSON Preview hiện đang ẩn: widget vẫn được khởi tạo nhưng không grid
+        # lên giao diện, để refresh_json_preview() tiếp tục cập nhật bình thường.
         self.json_text = tk.Text(parent, wrap="none", font=("Consolas", 10))
-        self.json_text.grid(row=0, column=0, sticky="nsew")
-        ttk.Button(parent, text="Refresh Preview", command=self.refresh_json_preview).grid(row=1, column=0, sticky="ew", pady=(8, 0))
 
     def _build_validation_panel(self, parent):
-        parent.rowconfigure(0, weight=6)
+        parent.rowconfigure(0, weight=1)
         parent.columnconfigure(0, weight=1)
         frame = ttk.LabelFrame(parent, text="Validate", padding=8)
         frame.grid(row=0, column=0, sticky="nsew")
-        frame.rowconfigure(3, weight=1)
+        # Không gian trống chia 6.5 phần cho Color Balance (row 2) và 3.5 phần cho
+        # bảng error + Warning/Info (row 3) — dùng 13:7 vì grid weight là số nguyên.
+        frame.rowconfigure(2, weight=13)
+        frame.rowconfigure(3, weight=7)
         frame.columnconfigure(0, weight=1)
 
         self.validation_summary = tk.Label(
@@ -690,10 +700,11 @@ class EditorUiMixin:
         ttk.Button(actions, text="Check Now", command=self.validate_level).grid(row=0, column=1, sticky="e")
 
         balance_frame = ttk.LabelFrame(frame, text="Color Balance", padding=4)
-        balance_frame.grid(row=2, column=0, sticky="ew", pady=(0, 4))
+        balance_frame.grid(row=2, column=0, sticky="nsew", pady=(0, 4))
+        balance_frame.rowconfigure(0, weight=1)
         balance_frame.columnconfigure(0, weight=1)
         columns = ("color", "shooter", "tray", "delta")
-        self.color_balance_tree = ttk.Treeview(balance_frame, columns=columns, show="headings", height=5)
+        self.color_balance_tree = ttk.Treeview(balance_frame, columns=columns, show="headings")
         for key, title, width in [
             ("color", "Color", 78),
             ("shooter", "Shooter", 70),
@@ -702,9 +713,7 @@ class EditorUiMixin:
         ]:
             self.color_balance_tree.heading(key, text=title)
             self.color_balance_tree.column(key, width=width, minwidth=48, anchor="center", stretch=(key == "color"))
-        self.color_balance_tree.grid(row=0, column=0, sticky="ew")
-        self.color_balance_tree.tag_configure("ok", background="#064E3B", foreground="#D1FAE5")
-        self.color_balance_tree.tag_configure("bad", background="#7F1D1D", foreground="#FEE2E2")
+        self.color_balance_tree.grid(row=0, column=0, sticky="nsew")
         self.color_balance_tree.tag_configure("unused", background="#374151", foreground="#E5E7EB")
 
         self.validation_text = tk.Text(
@@ -718,7 +727,7 @@ class EditorUiMixin:
             fg="#E5E7EB",
             insertbackground="#E5E7EB",
             state="disabled",
-            height=8,
+            height=4,
         )
         self.validation_text.grid(row=3, column=0, sticky="nsew")
         self.validation_text.tag_configure("error_header", foreground="#FFFFFF", background="#B91C1C", spacing1=6, spacing3=4)

@@ -298,7 +298,7 @@ class EditorGateMixin:
         for gate_index in range(gate_count):
             gate = gate_by_index.get(gate_index, {"gateIndex": gate_index, "trayQueue": []})
             x = start_x + gate_index * (gate_width + gap)
-            self._draw_gate_column(canvas, x, top_y, gate_width, base_y, base_height, tray_height, tray_gap, gate, max_visible)
+            self._draw_gate_column(canvas, x, top_y, gate_width, base_y, base_height, tray_height, tray_gap, gate, max_visible, max_rows)
 
         self._draw_connection_lines(canvas)
 
@@ -318,9 +318,12 @@ class EditorGateMixin:
         tray_gap: int,
         gate: Dict[str, Any],
         max_visible: int,
+        max_rows: int,
     ):
         trays = gate.get("trayQueue", [])
-        visible_rows = max(max_visible, len(trays))
+        # Mọi cột dùng chung chiều cao bằng cột cao nhất (max_rows) để toggle
+        # "dồn tray về cổng" luôn có tác dụng, không phụ thuộc Max Tray.
+        visible_rows = max(max_rows, len(trays))
         gate_index = gate.get("gateIndex", 0)
         is_gate_selected = gate_index in getattr(self, "selected_gate_indices", {self.selected_gate_index})
         self.gate_hit_areas.append({
@@ -340,10 +343,17 @@ class EditorGateMixin:
                 dash=(4, 3),
             )
 
-        for row in range(visible_rows):
-            tray_y = base_y - (visible_rows - row) * (tray_height + tray_gap) + tray_gap
-            tray = trays[row] if row < len(trays) else None
-            self._draw_tray_block(canvas, x, tray_y, width, tray_height, tray, gate_index, row if tray else None)
+        # Khi bật "dồn tray về cổng", các tray được đẩy xuống sát cổng (đáy) giống
+        # game thực tế, ô trống dồn lên trên. Mặc định tray neo ở phía trên.
+        stack_to_gate = getattr(self, "tray_stack_to_gate_var", None)
+        push_to_gate = bool(stack_to_gate.get()) if stack_to_gate is not None else False
+        slot_offset = (visible_rows - len(trays)) if push_to_gate else 0
+
+        for slot in range(visible_rows):
+            tray_y = base_y - (visible_rows - slot) * (tray_height + tray_gap) + tray_gap
+            tray_index = slot - slot_offset
+            tray = trays[tray_index] if 0 <= tray_index < len(trays) else None
+            self._draw_tray_block(canvas, x, tray_y, width, tray_height, tray, gate_index, tray_index if tray else None)
 
         if len(trays) > max_visible:
             line_y = base_y - max_visible * (tray_height + tray_gap) - 2
