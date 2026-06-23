@@ -77,21 +77,20 @@ class EditorCellsMixin:
             messagebox.showwarning("No Shooter", "Select a shooter cell or a tunnel with queued shooters first.")
             return
         modifiers = shooters[0].get("modifiers", [])
-        hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
-        ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
-        special = next((modifier for modifier in modifiers if modifier.get("type") == "Special"), None)
-        self.cell_edit_hidden_modifier.set(hidden is not None)
-        self.cell_edit_ice_modifier.set(ice is not None)
-        self.cell_edit_special_modifier.set(special is not None)
-        if ice is not None:
-            self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
-        self.update_cell_editor_modifier_state()
+        self._set_cell_editor_modifiers(modifiers)
 
     def update_cell_editor_modifier_state(self):
         if not hasattr(self, "cell_edit_ice_hp_spin"):
             return
-        state = "normal" if self.cell_edit_ice_modifier.get() else "disabled"
-        self.cell_edit_ice_hp_spin.configure(state=state)
+        self.cell_edit_ice_hp_spin.configure(state="normal" if self.cell_edit_ice_modifier.get() else "disabled")
+        if hasattr(self, "cell_edit_hammer_color_combo"):
+            self.cell_edit_hammer_color_combo.configure(
+                state="readonly" if self.cell_edit_hammer_modifier.get() else "disabled"
+            )
+        if hasattr(self, "cell_edit_arrow_direction_combo"):
+            self.cell_edit_arrow_direction_combo.configure(
+                state="readonly" if self.cell_edit_arrow_modifier.get() else "disabled"
+            )
 
     def on_cell_editor_modifier_change(self):
         self.update_cell_editor_modifier_state()
@@ -153,6 +152,10 @@ class EditorCellsMixin:
             ice=self.cell_edit_ice_modifier.get(),
             ice_hp=max(1, safe_int(str(self.cell_edit_ice_hp.get()), 1)),
             special=self.cell_edit_special_modifier.get(),
+            hammer=self.cell_edit_hammer_modifier.get(),
+            hammer_color=self.cell_edit_hammer_color.get(),
+            arrow=self.cell_edit_arrow_modifier.get(),
+            arrow_direction=self.cell_edit_arrow_direction.get(),
         )
 
     def _cell_editor_shooter_payload(self, existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -172,6 +175,10 @@ class EditorCellsMixin:
                 labels.append(f"Ice {modifier.get('hp', 1)}")
             elif modifier.get("type") == "Special":
                 labels.append("Special")
+            elif modifier.get("type") == "Hammer":
+                labels.append(f"Hammer {modifier.get('color', '?')}")
+            elif modifier.get("type") == "Arrow":
+                labels.append(f"Arrow {modifier.get('direction', '?')}")
         return ", ".join(labels)
 
     def _selected_tunnel_entity(self) -> Optional[Dict[str, Any]]:
@@ -293,11 +300,19 @@ class EditorCellsMixin:
         hidden = next((modifier for modifier in modifiers if modifier.get("type") == "Hidden"), None)
         ice = next((modifier for modifier in modifiers if modifier.get("type") == "Ice"), None)
         special = next((modifier for modifier in modifiers if modifier.get("type") == "Special"), None)
+        hammer = next((modifier for modifier in modifiers if modifier.get("type") == "Hammer"), None)
+        arrow = next((modifier for modifier in modifiers if modifier.get("type") == "Arrow"), None)
         self.cell_edit_hidden_modifier.set(hidden is not None)
         self.cell_edit_ice_modifier.set(ice is not None)
         self.cell_edit_special_modifier.set(special is not None)
+        self.cell_edit_hammer_modifier.set(hammer is not None)
+        self.cell_edit_arrow_modifier.set(arrow is not None)
         if ice is not None:
             self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
+        if hammer is not None:
+            self.cell_edit_hammer_color.set(hammer.get("color", "Blue"))
+        if arrow is not None:
+            self.cell_edit_arrow_direction.set(arrow.get("direction", "Up"))
         self.update_cell_editor_modifier_state()
 
     def _sync_cell_editor_from_selection(self, show_warning: bool = False):
@@ -537,6 +552,13 @@ class EditorCellsMixin:
                 })
             elif enabled and not existing and modifier_type == "Special":
                 modifiers.append({"type": "Special"})
+            elif enabled and modifier_type == "Hammer":
+                # Re-apply so the current color also updates an already-present Hammer.
+                modifiers = [modifier for modifier in modifiers if modifier.get("type") != "Hammer"]
+                modifiers.append({"type": "Hammer", "color": self.cell_edit_hammer_color.get()})
+            elif enabled and modifier_type == "Arrow":
+                modifiers = [modifier for modifier in modifiers if modifier.get("type") != "Arrow"]
+                modifiers.append({"type": "Arrow", "direction": self.cell_edit_arrow_direction.get()})
             shooter["modifiers"] = modifiers
 
         if modifier_type == "Hidden":
@@ -546,6 +568,12 @@ class EditorCellsMixin:
             self.update_cell_editor_modifier_state()
         elif modifier_type == "Special":
             self.cell_edit_special_modifier.set(enabled)
+        elif modifier_type == "Hammer":
+            self.cell_edit_hammer_modifier.set(enabled)
+            self.update_cell_editor_modifier_state()
+        elif modifier_type == "Arrow":
+            self.cell_edit_arrow_modifier.set(enabled)
+            self.update_cell_editor_modifier_state()
         self._update_selected_label()
         self._refresh_grid_button_states()
         self._refresh_cell_tunnel_queue(self._selected_tunnel_queue_index())
@@ -556,6 +584,10 @@ class EditorCellsMixin:
             return self.cell_edit_hidden_modifier
         if modifier_type == "Special":
             return self.cell_edit_special_modifier
+        if modifier_type == "Hammer":
+            return self.cell_edit_hammer_modifier
+        if modifier_type == "Arrow":
+            return self.cell_edit_arrow_modifier
         return self.cell_edit_ice_modifier
 
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:

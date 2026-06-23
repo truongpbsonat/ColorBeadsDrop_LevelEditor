@@ -18,6 +18,8 @@ from .constants import (
 )
 from .utils import safe_int
 
+_DIRECTION_ARROWS = {"Up": "↑", "Down": "↓", "Left": "←", "Right": "→"}
+
 def make_empty_level(rows: int = 4, cols: int = 4, gate_count: int = 4) -> Dict[str, Any]:
     level = {
         "gameMode": "Classic",
@@ -88,6 +90,10 @@ def make_shooter_modifiers(
     ice: bool = False,
     ice_hp: int = 1,
     special: bool = False,
+    hammer: bool = False,
+    hammer_color: str = "None",
+    arrow: bool = False,
+    arrow_direction: str = "Up",
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -99,18 +105,35 @@ def make_shooter_modifiers(
         })
     if special:
         modifiers.append({"type": "Special"})
+    if hammer:
+        modifiers.append({
+            "type": "Hammer",
+            "color": _enum_name(hammer_color, BALL_COLORS, "None"),
+        })
+    if arrow:
+        modifiers.append({
+            "type": "Arrow",
+            "direction": _enum_name(arrow_direction, DIRECTIONS, "Up"),
+        })
     return modifiers
 
 
 def make_tray_modifiers(
     ice: bool = False,
     ice_hp: int = TRAY_ICE_DEFAULT_HP,
+    remote: bool = False,
+    connection_id: str = "",
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if ice:
         modifiers.append({
             "type": "Ice",
             "hp": max(1, ice_hp),
+        })
+    if remote:
+        modifiers.append({
+            "type": "RemoteConnected",
+            "connectionId": str(connection_id or "").strip(),
         })
     return modifiers
 
@@ -279,6 +302,10 @@ def entity_label(entity: Optional[Dict[str, Any]]) -> str:
                 modifier_labels.append(f"I{modifier.get('hp', 1)}")
             elif modifier.get("type") == "Special":
                 modifier_labels.append("S")
+            elif modifier.get("type") == "Hammer":
+                modifier_labels.append("Hm")
+            elif modifier.get("type") == "Arrow":
+                modifier_labels.append(f"A{_DIRECTION_ARROWS.get(modifier.get('direction'), '?')}")
         suffix = f"\n[{','.join(modifier_labels)}]" if modifier_labels else ""
         return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}{suffix}"
     if t == "Wall":
@@ -352,6 +379,8 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
             found.add("IceBlock")
         elif obstacle_type == "LockBar":
             found.add("LockBar")
+        elif obstacle_type == "GlassBarrier":
+            found.add("GlassBarrier")
 
     for group in grid.get("shooterGroups", []) or []:
         if isinstance(group, dict) and group.get("type") == "Connected" and group.get("shooterIds"):
@@ -361,8 +390,13 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
     for gate in gate_system.get("gates", []) or []:
         for tray in gate.get("trayQueue", []) or []:
             for modifier in tray.get("modifiers", []) or []:
-                if isinstance(modifier, dict) and modifier.get("type") == "Ice":
+                if not isinstance(modifier, dict):
+                    continue
+                modifier_type = modifier.get("type")
+                if modifier_type == "Ice":
                     found.add("IceTray")
+                elif modifier_type == "RemoteConnected":
+                    found.add("ConnectedTray")
 
     return [mechanic_id for mechanic_id in MECHANIC_IDS if mechanic_id in found]
 
@@ -378,6 +412,12 @@ def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
             found.add("HiddenShooter")
         elif modifier_type == "Special":
             found.add("SpecialShooter")
+        elif modifier_type == "Arrow":
+            found.add("ArrowShooter")
+        elif modifier_type == "Hammer":
+            # Hammer is the tool that breaks a same-color GlassBarrier; it is not a
+            # standalone mechanic but always implies the GlassBarrier mechanic.
+            found.add("GlassBarrier")
 
 
 def _normalize_cell(cell: Dict[str, Any], row: int, col: int) -> Dict[str, Any]:
@@ -564,6 +604,10 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
     normalized = {"type": modifier_type}
     if modifier_type == "Ice":
         normalized["hp"] = safe_int(str(modifier.get("hp", 1)), 1)
+    elif modifier_type == "Hammer":
+        normalized["color"] = _enum_name(modifier.get("color"), BALL_COLORS, "None")
+    elif modifier_type == "Arrow":
+        normalized["direction"] = _enum_name(modifier.get("direction"), DIRECTIONS, "Up")
     return normalized
 
 
@@ -583,6 +627,10 @@ def _normalize_obstacle(obstacle: Dict[str, Any]) -> Dict[str, Any]:
     elif normalized["type"] == "LockBar":
         normalized["direction"] = _enum_name(obstacle.get("direction"), DIRECTIONS, "Right")
         normalized["length"] = max(1, safe_int(str(obstacle.get("length", 3)), 3))
+    elif normalized["type"] == "GlassBarrier":
+        normalized["direction"] = _enum_name(obstacle.get("direction"), DIRECTIONS, "Right")
+        normalized["length"] = max(1, safe_int(str(obstacle.get("length", 3)), 3))
+        normalized["color"] = _enum_name(obstacle.get("color"), BALL_COLORS, "None")
     return normalized
 
 
@@ -645,4 +693,6 @@ def _normalize_tray_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
     normalized = {"type": modifier_type}
     if modifier_type == "Ice":
         normalized["hp"] = max(1, safe_int(str(modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
+    elif modifier_type == "RemoteConnected":
+        normalized["connectionId"] = str(modifier.get("connectionId", "")).strip()
     return normalized

@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from .color_utils import SELECTABLE_BALL_COLORS
 from .constants import DIRECTIONS, GRID_OBSTACLE_SHAPE_TYPES, GRID_OBSTACLE_TYPES, SHOOTER_GROUP_TYPES
 from .level_data import find_cell
 from .utils import safe_int, short_id
@@ -25,6 +26,7 @@ class EditorObstacleGroupMixin:
         self.obstacle_hp_var = tk.IntVar(value=1)
         self.obstacle_direction_var = tk.StringVar(value="Right")
         self.obstacle_length_var = tk.IntVar(value=3)
+        self.obstacle_glass_color_var = tk.StringVar(value="Blue")
 
         ttk.Label(frame, textvariable=self.obstacle_status_var).grid(row=0, column=0, sticky="w")
 
@@ -80,7 +82,7 @@ class EditorObstacleGroupMixin:
         ttk.Label(ice_frame, text="HP").pack(side="left")
         ttk.Spinbox(ice_frame, from_=1, to=999, textvariable=self.obstacle_hp_var, width=7).pack(side="left", padx=(6, 0))
 
-        lock_frame = ttk.LabelFrame(frame, text="LockBar", padding=6)
+        lock_frame = ttk.LabelFrame(frame, text="LockBar / GlassBarrier (Direction & Length)", padding=6)
         lock_frame.grid(row=4, column=0, sticky="ew", pady=(6, 0))
         for index, direction in enumerate(DIRECTIONS):
             button = self._choice_button(
@@ -99,8 +101,19 @@ class EditorObstacleGroupMixin:
             row=1, column=1, sticky="ew", padx=(4, 0), pady=(6, 0)
         )
 
+        glass_frame = ttk.LabelFrame(frame, text="GlassBarrier", padding=6)
+        glass_frame.grid(row=5, column=0, sticky="ew", pady=(6, 0))
+        ttk.Label(glass_frame, text="Color").pack(side="left")
+        ttk.Combobox(
+            glass_frame,
+            textvariable=self.obstacle_glass_color_var,
+            values=list(SELECTABLE_BALL_COLORS),
+            state="readonly",
+            width=14,
+        ).pack(side="left", padx=(6, 0))
+
         action_frame = ttk.Frame(frame)
-        action_frame.grid(row=5, column=0, sticky="ew", pady=(8, 0))
+        action_frame.grid(row=6, column=0, sticky="ew", pady=(8, 0))
         for col in range(3):
             action_frame.columnconfigure(col, weight=1)
         ttk.Button(action_frame, text="Add", command=self.add_obstacle_from_form).grid(row=0, column=0, sticky="ew", padx=(0, 2), pady=2)
@@ -111,8 +124,8 @@ class EditorObstacleGroupMixin:
         ttk.Button(action_frame, text="Clear Cells", command=self.clear_obstacle_custom_cells).grid(row=1, column=2, sticky="ew", padx=(2, 0), pady=2)
 
         list_frame = ttk.LabelFrame(frame, text="Obstacles", padding=6)
-        list_frame.grid(row=6, column=0, sticky="nsew", pady=(8, 0))
-        frame.rowconfigure(6, weight=1)
+        list_frame.grid(row=7, column=0, sticky="nsew", pady=(8, 0))
+        frame.rowconfigure(7, weight=1)
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
         columns = ("type", "shape", "origin", "extra")
@@ -249,7 +262,7 @@ class EditorObstacleGroupMixin:
         if not hasattr(self, "obstacle_type_var"):
             return
         obstacle_type = self.obstacle_type_var.get()
-        if obstacle_type == "LockBar":
+        if obstacle_type in ("LockBar", "GlassBarrier"):
             self.obstacle_shape_type_var.set(self._shape_type_for_lockbar())
 
     def on_obstacle_type_changed(self):
@@ -401,6 +414,8 @@ class EditorObstacleGroupMixin:
             origin_text = f"{origin.get('row', 0)},{origin.get('column', 0)}"
             if obstacle.get("type") == "IceBlock":
                 extra = f"hp {obstacle.get('hp', 1)}"
+            elif obstacle.get("type") == "GlassBarrier":
+                extra = f"{obstacle.get('direction', 'Right')} x{obstacle.get('length', 3)} {obstacle.get('color', '?')}"
             else:
                 extra = f"{obstacle.get('direction', 'Right')} x{obstacle.get('length', 3)}"
             self.obstacle_tree.insert(
@@ -432,6 +447,8 @@ class EditorObstacleGroupMixin:
         self.obstacle_hp_var.set(max(1, safe_int(str(obstacle.get("hp", 1)), 1)))
         self.obstacle_direction_var.set(obstacle.get("direction", "Right"))
         self.obstacle_length_var.set(max(1, safe_int(str(obstacle.get("length", 3)), 3)))
+        if obstacle.get("type") == "GlassBarrier":
+            self.obstacle_glass_color_var.set(obstacle.get("color", "Blue"))
         self.obstacle_custom_cells = set(self._shape_cells(shape, default_size=1)) if shape.get("type") == "CustomCells" else set()
         self._refresh_choice_group("obstacle_type")
         self._refresh_choice_group("obstacle_direction")
@@ -441,21 +458,31 @@ class EditorObstacleGroupMixin:
         obstacle_type = self.obstacle_type_var.get()
         origin_row = max(0, safe_int(str(self.obstacle_origin_row_var.get()), 0))
         origin_col = max(0, safe_int(str(self.obstacle_origin_col_var.get()), 0))
-        if obstacle_type == "LockBar":
+        if obstacle_type in ("LockBar", "GlassBarrier"):
             direction = self.obstacle_direction_var.get()
             length = max(1, safe_int(str(self.obstacle_length_var.get()), 3))
+            shape = {
+                "type": self._shape_type_for_lockbar(),
+                "origin": {"row": origin_row, "column": origin_col},
+                "width": 1 if direction in {"Up", "Down"} else length,
+                "height": length if direction in {"Up", "Down"} else 1,
+                "cells": [],
+            }
+            if obstacle_type == "GlassBarrier":
+                return {
+                    "obstacleId": existing_id or short_id("glass"),
+                    "type": "GlassBarrier",
+                    "direction": direction,
+                    "length": length,
+                    "color": self.obstacle_glass_color_var.get(),
+                    "shape": shape,
+                }
             return {
                 "obstacleId": existing_id or short_id("lock"),
                 "type": "LockBar",
                 "direction": direction,
                 "length": length,
-                "shape": {
-                    "type": self._shape_type_for_lockbar(),
-                    "origin": {"row": origin_row, "column": origin_col},
-                    "width": 1 if direction in {"Up", "Down"} else length,
-                    "height": length if direction in {"Up", "Down"} else 1,
-                    "cells": [],
-                },
+                "shape": shape,
             }
 
         shape_type = self.obstacle_shape_type_var.get()
@@ -489,8 +516,9 @@ class EditorObstacleGroupMixin:
         }
 
     def _copy_obstacle_with_new_id(self, obstacle: Dict[str, Any]) -> Dict[str, Any]:
+        id_prefix = {"LockBar": "lock", "GlassBarrier": "glass"}.get(obstacle.get("type"), "ice")
         copied = {
-            "obstacleId": short_id("lock" if obstacle.get("type") == "LockBar" else "ice"),
+            "obstacleId": short_id(id_prefix),
             "type": obstacle.get("type"),
             "shape": {
                 "type": obstacle.get("shape", {}).get("type", "Rect"),
@@ -502,9 +530,11 @@ class EditorObstacleGroupMixin:
         }
         if obstacle.get("type") == "IceBlock":
             copied["hp"] = obstacle.get("hp", 1)
-        if obstacle.get("type") == "LockBar":
+        if obstacle.get("type") in ("LockBar", "GlassBarrier"):
             copied["direction"] = obstacle.get("direction", "Right")
             copied["length"] = obstacle.get("length", 3)
+        if obstacle.get("type") == "GlassBarrier":
+            copied["color"] = obstacle.get("color", "None")
         return copied
 
     def _shape_type_for_lockbar(self) -> str:
@@ -714,7 +744,8 @@ class EditorObstacleGroupMixin:
         labels = []
         for index in self._obstacle_indexes_at(row, col):
             obstacle = self._grid_obstacles()[index]
-            labels.append(("L" if obstacle.get("type") == "LockBar" else "I") + str(index + 1))
+            prefix = {"LockBar": "L", "GlassBarrier": "B"}.get(obstacle.get("type"), "I")
+            labels.append(prefix + str(index + 1))
         for index in self._group_indexes_at(row, col):
             labels.append("G" + str(index + 1))
         return "\n" + " ".join(labels) if labels else ""
@@ -883,7 +914,7 @@ class EditorObstacleGroupMixin:
         ]
 
     def _obstacle_cells(self, obstacle: Dict[str, Any]) -> Set[Tuple[int, int]]:
-        if obstacle.get("type") == "LockBar":
+        if obstacle.get("type") in ("LockBar", "GlassBarrier"):
             return set(self._lockbar_cells(obstacle))
         return set(self._shape_cells(obstacle.get("shape", {}) or {}, default_size=3))
 

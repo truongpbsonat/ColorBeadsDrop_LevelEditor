@@ -187,6 +187,7 @@ class LevelValidator:
         if not has_initial_active_shooter:
             warnings.append("No shooter active initially.")
 
+        self._validate_remote_connection_pairs(level, errors)
         self._validate_mechanics(level, errors, warnings)
 
         if not errors and not warnings:
@@ -201,6 +202,12 @@ class LevelValidator:
                 errors.append(f"Shooter modifier type không hỗ trợ: {mtype}.")
             if mtype == "Ice" and modifier.get("hp", 1) <= 0:
                 errors.append(f"Ice shooter {shooter_id} hp phải > 0.")
+            if mtype == "Hammer":
+                color = modifier.get("color")
+                if color not in BALL_COLORS or color == "None":
+                    errors.append(f"Hammer shooter {shooter_id} có color không hợp lệ: {color}.")
+            if mtype == "Arrow" and modifier.get("direction") not in DIRECTIONS:
+                errors.append(f"Arrow shooter {shooter_id} có direction không hợp lệ: {modifier.get('direction')}.")
 
     def _validate_fixed_shooter_capacity(
         self,
@@ -237,6 +244,8 @@ class LevelValidator:
                 errors.append(f"Tray modifier type không hỗ trợ: {mtype}.")
             if mtype == "Ice" and modifier.get("hp", TRAY_ICE_DEFAULT_HP) <= 0:
                 errors.append(f"Ice tray {tray_id} hp phải > 0.")
+            if mtype == "RemoteConnected" and not str(modifier.get("connectionId", "")).strip():
+                errors.append(f"RemoteConnected tray {tray_id} thiếu connectionId.")
 
     def _validate_obstacles_legacy(self, grid: Dict[str, Any], blocked: List[List[bool]], errors: List[str]) -> None:
         rows = grid.get("rows", 0)
@@ -297,6 +306,17 @@ class LevelValidator:
                     errors.append(f"LockBar {obstacle.get('obstacleId')} length must be > 0.")
                 affected_cells = self._expand_lockbar_shape(obstacle)
                 self._validate_lockbar_cells(obstacle, affected_cells, entities_by_pos, rows, cols, errors)
+            elif obstacle_type == "GlassBarrier":
+                direction = obstacle.get("direction")
+                if direction not in DIRECTIONS:
+                    errors.append(f"GlassBarrier {obstacle.get('obstacleId')} direction is invalid: {direction}.")
+                    continue
+                if obstacle.get("length", 0) <= 0:
+                    errors.append(f"GlassBarrier {obstacle.get('obstacleId')} length must be > 0.")
+                color = obstacle.get("color")
+                if color not in BALL_COLORS or color == "None":
+                    errors.append(f"GlassBarrier {obstacle.get('obstacleId')} có color không hợp lệ: {color}.")
+                affected_cells = self._expand_lockbar_shape(obstacle)
             else:
                 continue
 
@@ -358,6 +378,23 @@ class LevelValidator:
                     errors.append(f"ShooterGroup {group_id} references missing shooterId: {shooter_id}.")
             if group_type == "Connected" and len(group.get("shooterIds", []) or []) < 2:
                 warnings.append(f"ShooterGroup {group_id} Connected should have at least 2 shooters.")
+
+    def _validate_remote_connection_pairs(self, level: Dict[str, Any], errors: List[str]) -> None:
+        trays_by_connection: Dict[str, List[str]] = defaultdict(list)
+        for gate in level.get("gateSystem", {}).get("gates", []):
+            for tray in gate.get("trayQueue", []):
+                for modifier in tray.get("modifiers", []):
+                    if not isinstance(modifier, dict) or modifier.get("type") != "RemoteConnected":
+                        continue
+                    connection_id = str(modifier.get("connectionId", "")).strip()
+                    if connection_id:
+                        trays_by_connection[connection_id].append(tray.get("trayId") or "?")
+        for connection_id, tray_ids in sorted(trays_by_connection.items()):
+            if len(tray_ids) != 2:
+                errors.append(
+                    f"RemoteConnected connectionId '{connection_id}' phải nối đúng 2 tray, "
+                    f"hiện có {len(tray_ids)} (trays: {', '.join(tray_ids)})."
+                )
 
     def _validate_mechanics(self, level: Dict[str, Any], errors: List[str], warnings: List[str]) -> None:
         mechanics = level.get("mechanics", [])
