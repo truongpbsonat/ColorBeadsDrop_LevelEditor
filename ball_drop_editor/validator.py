@@ -157,7 +157,7 @@ class LevelValidator:
                     color_need[color] += max(0, required)
                 self._validate_tray_modifiers(tray, errors)
 
-        for color in sorted(color_need):
+        for color in sorted(set(color_need) | set(color_capacity)):
             if color not in BALL_COLORS or color == "None":
                 continue
             need = color_need.get(color, 0)
@@ -173,7 +173,7 @@ class LevelValidator:
                     f"(khoảng {shooter_count} shooter thường capacity 9) hoặc giảm {missing} trayRequired "
                     f"(khoảng {tray_count} tray/layer capacity 3)."
                 )
-            elif cap > need * 2:
+            elif cap > need:
                 extra = cap - need
                 shooter_count = (extra + SHOOTER_FIXED_CAPACITY - 1) // SHOOTER_FIXED_CAPACITY
                 tray_count = (extra + 2) // 3

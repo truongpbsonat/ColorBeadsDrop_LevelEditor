@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Dict, List, Tuple
 
-from .constants import BALL_COLORS
+from .color_utils import color_text_hex
+from .constants import BALL_COLORS, COLOR_HEX
 from .utils import safe_int
 from .validator import LevelValidator
 
@@ -56,6 +57,7 @@ class EditorValidationMixin:
             self.color_balance_tree.delete(item)
 
         shooter_by_color, tray_by_color = self.collect_color_balance()
+        index = 0
         for color in BALL_COLORS:
             if color == "None":
                 continue
@@ -64,8 +66,13 @@ class EditorValidationMixin:
             if shooter == 0 and tray == 0:
                 continue
             delta = shooter - tray
-            tag = "ok" if delta == 0 else "bad"
+            # Hiển thị màu thật của ball (giống Color Tool) thay cho ô màu text.
+            tag = f"color_{index}"
+            background = COLOR_HEX.get(color, "#E5E7EB")
+            foreground = color_text_hex(color) if color in COLOR_HEX else "#111111"
+            self.color_balance_tree.tag_configure(tag, background=background, foreground=foreground)
             self.color_balance_tree.insert("", "end", values=(color, shooter, tray, f"{delta:+d}"), tags=(tag,))
+            index += 1
 
         if not self.color_balance_tree.get_children():
             self.color_balance_tree.insert("", "end", values=("No data", 0, 0, "+0"), tags=("unused",))
@@ -117,6 +124,7 @@ class EditorValidationMixin:
 
     def refresh_json_preview(self):
         self.sync_basic_fields()
-        self.json_text.delete("1.0", "end")
-        self.json_text.insert("1.0", json.dumps(self.level, ensure_ascii=False, indent=2))
+        if hasattr(self, "json_text"):
+            self.json_text.delete("1.0", "end")
+            self.json_text.insert("1.0", json.dumps(self.level, ensure_ascii=False, indent=2))
         self.mark_level_changed()
