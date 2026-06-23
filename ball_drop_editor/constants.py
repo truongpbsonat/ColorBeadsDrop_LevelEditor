@@ -35,11 +35,12 @@ COLOR_HEX = {
 ENTITY_TYPES = ["Empty", "Shooter", "Wall", "Tunnel"]
 RUNTIME_ENTITY_TYPES = ["Shooter", "Wall", "Tunnel"]
 DIRECTIONS = ["Up", "Down", "Left", "Right"]
-SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special"]
+SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special", "Hammer", "Arrow"]
 SHOOTER_FIXED_CAPACITY = 9
-TRAY_MODIFIER_TYPES = ["Ice"]
+TRAY_MODIFIER_TYPES = ["Ice", "RemoteConnected"]
 TRAY_ICE_DEFAULT_HP = 2
-GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar"]
+GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar", "GlassBarrier"]
+GLASS_BARRIER_DEFAULT_LENGTH = 3
 GRID_OBSTACLE_SHAPE_TYPES = ["Rect", "CustomCells", "Plus", "LineHorizontal", "LineVertical"]
 SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]
 GAME_MODES = ["Classic"]
@@ -76,6 +77,9 @@ MECHANIC_IDS = [
     "ConnectedShooter",
     "IceBlock",
     "SpecialShooter",
+    "GlassBarrier",
+    "ConnectedTray",
+    "ArrowShooter",
 ]
 
 MECHANIC_ID_ALIASES = {

@@ -209,7 +209,7 @@ Khi paint brush `Shooter`, tool tạo data dạng:
 | `shooter.shooterId` | Có | ID shooter gameplay. |
 | `shooter.colorId` | Có | Màu gameplay của shooter/ball. |
 | `shooter.capacity` | Có | Số ball nhỏ spawn ra khi shooter bắn. |
-| `shooter.modifiers` | Có | Danh sách modifier `Hidden`/`Ice`, chỉnh từ brush hoặc shooter grid đang chọn. |
+| `shooter.modifiers` | Có | Danh sách modifier `Hidden`/`Ice`/`Special`/`Hammer`/`Arrow`, chỉnh từ brush hoặc shooter grid đang chọn. Xem mục 5.4. |
 
 ### 5.3 Màu hợp lệ trong tool
 
@@ -228,6 +228,57 @@ Wild
 ```
 
 `Wild` là màu đặc biệt, runtime cần check qua `ColorConfigManager.IsSameGameplayColor`.
+
+### 5.4 Shooter modifiers
+
+`shooter.modifiers` là list các object có field `type` (luôn là **tên enum dạng string**, không phải số):
+
+```json
+{ "type": "Hidden" }
+{ "type": "Ice", "hp": 2 }
+{ "type": "Special" }
+{ "type": "Hammer", "color": "Blue" }
+{ "type": "Arrow", "direction": "Up" }
+```
+
+| Type | Field thêm | Ý nghĩa |
+|---|---|---|
+| `Hidden` | – | Ẩn shooter cho tới khi lộ ra. |
+| `Ice` | `hp` | Đóng băng shooter, cần phá `hp` lần. |
+| `Special` | – | Shooter đặc biệt (capacity hiệu dụng x2). |
+| `Hammer` | `color` | Búa phá `GlassBarrier` **cùng màu**. Không phải mechanic riêng — khi có Hammer, level được tính là dùng mechanic `GlassBarrier`. Chỉnh trong panel **Modifiers → Hammer** + combobox **Hammer Color**. |
+| `Arrow` | `direction` | Mở khoá theo hướng `Up/Down/Left/Right`. Mechanic `ArrowShooter`. Chỉnh trong panel **Modifiers → Arrow** + combobox **Arrow Dir**. |
+
+---
+
+## 5b. GlassBarrier obstacle & ConnectedTray modifier
+
+### GlassBarrier (grid obstacle)
+
+Obstacle dạng đường thẳng giống `LockBar`, thêm `color`. Đặt trong tab **Grid Obstacles → type GlassBarrier**: chọn hướng + length (dùng chung control với LockBar) và **Color**.
+
+```json
+{
+  "obstacleId": "glass_ab12",
+  "type": "GlassBarrier",
+  "direction": "Right",
+  "length": 3,
+  "color": "Blue",
+  "shape": { "type": "LineHorizontal", "origin": { "row": 1, "column": 1 }, "width": 3, "height": 1, "cells": [] }
+}
+```
+
+Chỉ một shooter có modifier `Hammer` cùng màu mới phá được barrier. Mechanic: `GlassBarrier`.
+
+### ConnectedTray (tray modifier `RemoteConnected`)
+
+Nối 2 tray ở 2 gate bằng cùng `connectionId`; cả hai mở khoá khi cùng ra front. Chỉnh trong **Gate Direct Edit → Tray Connect** + ô **Connection Id**.
+
+```json
+{ "type": "RemoteConnected", "connectionId": "link_a" }
+```
+
+Validator yêu cầu mỗi `connectionId` xuất hiện **đúng trên 2 tray** (lệch hoặc rỗng → error). Mechanic: `ConnectedTray`.
 
 ---
 

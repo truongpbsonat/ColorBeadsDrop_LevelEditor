@@ -148,6 +148,8 @@ class EditorGateMixin:
                 self.selected_tray_id_var.set("")
                 self.selected_tray_ice_modifier.set(False)
                 self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
+                self.selected_tray_remote_modifier.set(False)
+                self.selected_tray_connection_id.set("")
                 self.update_selected_tray_modifier_state()
                 self.selected_layer_var.set(0)
                 self.selected_layer_color_var.set("Blue")
@@ -161,6 +163,7 @@ class EditorGateMixin:
                 layers.append(self._default_tray_layer())
             layer = layers[self.selected_layer_index]
             ice_modifier = self._tray_ice_modifier(tray)
+            remote_modifier = self._tray_remote_modifier(tray)
             self.gate_selection_label.configure(
                 text=f"{self._selection_summary()} / Layer {self.selected_layer_index}"
             )
@@ -169,6 +172,10 @@ class EditorGateMixin:
             self.selected_tray_ice_hp.set(
                 max(1, safe_int(str(ice_modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
                 if ice_modifier is not None else TRAY_ICE_DEFAULT_HP
+            )
+            self.selected_tray_remote_modifier.set(remote_modifier is not None)
+            self.selected_tray_connection_id.set(
+                str(remote_modifier.get("connectionId", "")) if remote_modifier is not None else ""
             )
             self.update_selected_tray_modifier_state()
             self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
@@ -240,10 +247,17 @@ class EditorGateMixin:
             return None
         return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "Ice"), None)
 
+    def _tray_remote_modifier(self, tray: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not tray:
+            return None
+        return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "RemoteConnected"), None)
+
     def _selected_tray_modifiers(self) -> List[Dict[str, Any]]:
         return make_tray_modifiers(
             ice=self.selected_tray_ice_modifier.get(),
             ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), TRAY_ICE_DEFAULT_HP)),
+            remote=self.selected_tray_remote_modifier.get(),
+            connection_id=self.selected_tray_connection_id.get(),
         )
 
     def draw_gate_preview(self):
@@ -285,6 +299,8 @@ class EditorGateMixin:
             gate = gate_by_index.get(gate_index, {"gateIndex": gate_index, "trayQueue": []})
             x = start_x + gate_index * (gate_width + gap)
             self._draw_gate_column(canvas, x, top_y, gate_width, base_y, base_height, tray_height, tray_gap, gate, max_visible)
+
+        self._draw_connection_lines(canvas)
 
     def _draw_gate_backplate(self, canvas: tk.Canvas, x: int, y: int, width: int, height: int):
         self._create_round_rect(canvas, x + 2, y + 4, x + width + 2, y + height + 4, 10, fill="#171C31", outline="")
@@ -405,6 +421,23 @@ class EditorGateMixin:
                 width=1,
             )
             canvas.create_text(x + width - 16, y + height - 8, text=f"I{hp}", fill="#0F3E5E", font=("Arial", 7, "bold"))
+
+        remote_mod = self._tray_remote_modifier(tray)
+        if remote_mod is not None:
+            cid = str(remote_mod.get("connectionId", "")).strip()
+            badge_label = f"C:{cid[:4]}" if cid else "C:?"
+            self._create_round_rect(
+                canvas,
+                x + 3,
+                y + height - 13,
+                x + 37,
+                y + height - 3,
+                4,
+                fill="#FFE9C7",
+                outline="#F5A623",
+                width=1,
+            )
+            canvas.create_text(x + 20, y + height - 8, text=badge_label, fill="#7A4A00", font=("Arial", 7, "bold"))
 
     def _is_multi_select_event(self, event) -> bool:
         state = getattr(event, "state", 0)
@@ -552,6 +585,7 @@ class EditorGateMixin:
 
         if not pending:
             self.selected_tray_ice_modifier.set(False)
+            self.selected_tray_remote_modifier.set(False)
             self.update_selected_tray_modifier_state()
             return
 
@@ -562,6 +596,8 @@ class EditorGateMixin:
                 tray["modifiers"] = []
         self.selected_tray_ice_modifier.set(False)
         self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
+        self.selected_tray_remote_modifier.set(False)
+        self.selected_tray_connection_id.set("")
         self.update_selected_tray_modifier_state()
         self.refresh_gate_direct_controls()
         self.draw_gate_preview()
@@ -852,6 +888,38 @@ class EditorGateMixin:
         self.refresh_gate_direct_controls()
         self.draw_gate_preview()
         self.refresh_gate_outputs()
+
+    def _draw_connection_lines(self, canvas: tk.Canvas):
+        gs = self.level.get("gateSystem", {})
+        conn_to_refs: dict = {}
+        for gate in gs.get("gates", []):
+            gate_index = gate.get("gateIndex", 0)
+            for tray_index, tray in enumerate(gate.get("trayQueue", [])):
+                remote = self._tray_remote_modifier(tray)
+                if remote:
+                    cid = str(remote.get("connectionId", "")).strip()
+                    if cid:
+                        conn_to_refs.setdefault(cid, []).append((gate_index, tray_index))
+
+        tray_centers: dict = {}
+        for area in self.gate_hit_areas:
+            if area["kind"] == "tray":
+                x1, y1, x2, y2 = area["bounds"]
+                tray_centers[(area["gateIndex"], area["trayIndex"])] = (
+                    (x1 + x2) // 2,
+                    (y1 + y2) // 2,
+                )
+
+        for cid, refs in conn_to_refs.items():
+            line_color = "#FFFFFF" if len(refs) == 2 else "#E05050"
+            for i in range(len(refs) - 1):
+                c1 = tray_centers.get(refs[i])
+                c2 = tray_centers.get(refs[i + 1])
+                if c1 and c2:
+                    canvas.create_line(
+                        c1[0], c1[1], c2[0], c2[1],
+                        fill=line_color, width=2,
+                    )
 
     def _draw_gate_arrow(self, canvas: tk.Canvas, center_x: int, y: int):
         canvas.create_polygon(

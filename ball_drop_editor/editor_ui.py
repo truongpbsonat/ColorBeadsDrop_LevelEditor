@@ -323,7 +323,11 @@ class EditorUiMixin:
         self.cell_edit_hidden_modifier = tk.BooleanVar(value=False)
         self.cell_edit_ice_modifier = tk.BooleanVar(value=False)
         self.cell_edit_special_modifier = tk.BooleanVar(value=False)
+        self.cell_edit_hammer_modifier = tk.BooleanVar(value=False)
+        self.cell_edit_arrow_modifier = tk.BooleanVar(value=False)
         self.cell_edit_ice_hp = tk.IntVar(value=1)
+        self.cell_edit_hammer_color = tk.StringVar(value="Blue")
+        self.cell_edit_arrow_direction = tk.StringVar(value="Up")
         self.cell_edit_tunnel_direction = tk.StringVar(value="Up")
         self.cell_edit_tunnel_queue_index: Optional[int] = None
 
@@ -430,6 +434,42 @@ class EditorUiMixin:
         self.cell_edit_ice_hp_spin.bind("<Return>", self.apply_ice_hp_change)
         self.cell_edit_ice_hp_spin.bind("<FocusOut>", self.apply_ice_hp_change)
 
+        self._toggle_button(
+            modifier_frame,
+            "Hammer",
+            self.cell_edit_hammer_modifier,
+            command=lambda: self.apply_modifier_button_change("Hammer"),
+        ).grid(row=2, column=0, sticky="nsew", padx=2, pady=2)
+        self._toggle_button(
+            modifier_frame,
+            "Arrow",
+            self.cell_edit_arrow_modifier,
+            command=lambda: self.apply_modifier_button_change("Arrow"),
+        ).grid(row=2, column=1, sticky="nsew", padx=2, pady=2)
+
+        hammer_arrow_row = ttk.Frame(modifier_frame)
+        hammer_arrow_row.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        ttk.Label(hammer_arrow_row, text="Hammer Color").pack(side="left")
+        self.cell_edit_hammer_color_combo = ttk.Combobox(
+            hammer_arrow_row,
+            textvariable=self.cell_edit_hammer_color,
+            values=list(SELECTABLE_BALL_COLORS),
+            state="readonly",
+            width=12,
+        )
+        self.cell_edit_hammer_color_combo.pack(side="left", padx=(6, 12))
+        self.cell_edit_hammer_color_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_modifier_button_change("Hammer"))
+        ttk.Label(hammer_arrow_row, text="Arrow Dir").pack(side="left")
+        self.cell_edit_arrow_direction_combo = ttk.Combobox(
+            hammer_arrow_row,
+            textvariable=self.cell_edit_arrow_direction,
+            values=list(DIRECTIONS),
+            state="readonly",
+            width=7,
+        )
+        self.cell_edit_arrow_direction_combo.pack(side="left", padx=(6, 0))
+        self.cell_edit_arrow_direction_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_modifier_button_change("Arrow"))
+
         tunnel_frame = ttk.LabelFrame(frame, text="Tunnel direction", padding=6)
         tunnel_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         for index, direction in enumerate(DIRECTIONS):
@@ -517,6 +557,8 @@ class EditorUiMixin:
         self.selected_tray_id_var = tk.StringVar()
         self.selected_tray_ice_modifier = tk.BooleanVar(value=False)
         self.selected_tray_ice_hp = tk.IntVar(value=TRAY_ICE_DEFAULT_HP)
+        self.selected_tray_remote_modifier = tk.BooleanVar(value=False)
+        self.selected_tray_connection_id = tk.StringVar()
 
         tray_buttons = ttk.Frame(controls)
         tray_buttons.grid(row=1, column=0, sticky="ew")
@@ -576,6 +618,25 @@ class EditorUiMixin:
         self.selected_tray_ice_hp_spin.bind("<FocusOut>", self.apply_selected_tray_modifiers)
         ttk.Button(modifier_fields, text="Apply", command=self.apply_selected_tray_modifiers, width=7).pack(side="left", padx=(6, 0))
         ttk.Button(modifier_fields, text="Remove", command=self.remove_selected_tray_modifiers, width=8).pack(side="left", padx=3)
+
+        remote_fields = ttk.Frame(controls)
+        remote_fields.grid(row=5, column=0, sticky="ew", pady=(3, 0))
+        ttk.Checkbutton(
+            remote_fields,
+            text="Tray Connect",
+            variable=self.selected_tray_remote_modifier,
+            command=self.on_selected_tray_modifier_change,
+        ).pack(side="left")
+        ttk.Label(remote_fields, text="Connection Id").pack(side="left", padx=(8, 3))
+        self.selected_tray_connection_id_entry = ttk.Entry(
+            remote_fields,
+            textvariable=self.selected_tray_connection_id,
+            width=14,
+        )
+        self.selected_tray_connection_id_entry.pack(side="left")
+        self.selected_tray_connection_id_entry.bind("<Return>", self.apply_selected_tray_modifiers)
+        self.selected_tray_connection_id_entry.bind("<FocusOut>", self.apply_selected_tray_modifiers)
+
         self.update_selected_tray_modifier_state()
 
     def update_add_layer_button_state(self):
@@ -587,8 +648,13 @@ class EditorUiMixin:
     def update_selected_tray_modifier_state(self):
         if not hasattr(self, "selected_tray_ice_hp_spin"):
             return
-        state = "normal" if self.selected_tray_ice_modifier.get() else "disabled"
-        self.selected_tray_ice_hp_spin.configure(state=state)
+        self.selected_tray_ice_hp_spin.configure(
+            state="normal" if self.selected_tray_ice_modifier.get() else "disabled"
+        )
+        if hasattr(self, "selected_tray_connection_id_entry"):
+            self.selected_tray_connection_id_entry.configure(
+                state="normal" if self.selected_tray_remote_modifier.get() else "disabled"
+            )
 
     def _build_json_preview(self, parent):
         parent.rowconfigure(0, weight=1)
