@@ -564,6 +564,7 @@ class EditorUiMixin:
         self.gate_selection_label.grid(row=0, column=0, sticky="w", pady=(0, 4))
         self.add_layer_enabled_var = tk.BooleanVar(value=False)
         self.selected_tray_id_var = tk.StringVar()
+        self.selected_tray_hidden_modifier = tk.BooleanVar(value=False)
         self.selected_tray_ice_modifier = tk.BooleanVar(value=False)
         self.selected_tray_ice_hp = tk.IntVar(value=TRAY_ICE_DEFAULT_HP)
         self.selected_tray_remote_modifier = tk.BooleanVar(value=False)
@@ -607,6 +608,12 @@ class EditorUiMixin:
 
         modifier_fields = ttk.Frame(controls)
         modifier_fields.grid(row=4, column=0, sticky="ew", pady=(3, 0))
+        ttk.Checkbutton(
+            modifier_fields,
+            text="Tray Hidden",
+            variable=self.selected_tray_hidden_modifier,
+            command=self.on_selected_tray_modifier_change,
+        ).pack(side="left", padx=(0, 10))
         ttk.Checkbutton(
             modifier_fields,
             text="Tray Ice",

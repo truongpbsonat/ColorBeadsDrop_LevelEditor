@@ -37,7 +37,7 @@ RUNTIME_ENTITY_TYPES = ["Shooter", "Wall", "Tunnel"]
 DIRECTIONS = ["Up", "Down", "Left", "Right"]
 SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special", "Hammer", "Arrow"]
 SHOOTER_FIXED_CAPACITY = 9
-TRAY_MODIFIER_TYPES = ["Ice", "RemoteConnected"]
+TRAY_MODIFIER_TYPES = ["Ice", "RemoteConnected", "Hidden"]
 TRAY_ICE_DEFAULT_HP = 2
 GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar", "GlassBarrier"]
 GLASS_BARRIER_DEFAULT_LENGTH = 3
@@ -79,6 +79,7 @@ MECHANIC_IDS = [
     "SpecialShooter",
     "GlassBarrier",
     "ConnectedTray",
+    "HiddenTray",
     "ArrowShooter",
 ]
 

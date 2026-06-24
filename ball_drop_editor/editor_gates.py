@@ -146,6 +146,7 @@ class EditorGateMixin:
             if self.selected_tray_index is None or not trays:
                 self.gate_selection_label.configure(text=self._selection_summary())
                 self.selected_tray_id_var.set("")
+                self.selected_tray_hidden_modifier.set(False)
                 self.selected_tray_ice_modifier.set(False)
                 self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
                 self.selected_tray_remote_modifier.set(False)
@@ -164,10 +165,12 @@ class EditorGateMixin:
             layer = layers[self.selected_layer_index]
             ice_modifier = self._tray_ice_modifier(tray)
             remote_modifier = self._tray_remote_modifier(tray)
+            hidden_modifier = self._tray_hidden_modifier(tray)
             self.gate_selection_label.configure(
                 text=f"{self._selection_summary()} / Layer {self.selected_layer_index}"
             )
             self.selected_tray_id_var.set(tray.get("trayId", ""))
+            self.selected_tray_hidden_modifier.set(hidden_modifier is not None)
             self.selected_tray_ice_modifier.set(ice_modifier is not None)
             self.selected_tray_ice_hp.set(
                 max(1, safe_int(str(ice_modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
@@ -252,8 +255,14 @@ class EditorGateMixin:
             return None
         return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "RemoteConnected"), None)
 
+    def _tray_hidden_modifier(self, tray: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not tray:
+            return None
+        return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "Hidden"), None)
+
     def _selected_tray_modifiers(self) -> List[Dict[str, Any]]:
         return make_tray_modifiers(
+            hidden=self.selected_tray_hidden_modifier.get(),
             ice=self.selected_tray_ice_modifier.get(),
             ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), TRAY_ICE_DEFAULT_HP)),
             remote=self.selected_tray_remote_modifier.get(),
@@ -449,6 +458,21 @@ class EditorGateMixin:
             )
             canvas.create_text(x + 20, y + height - 8, text=badge_label, fill="#7A4A00", font=("Arial", 7, "bold"))
 
+        hidden_mod = self._tray_hidden_modifier(tray)
+        if hidden_mod is not None:
+            self._create_round_rect(
+                canvas,
+                x + width - 18,
+                y + 2,
+                x + width - 4,
+                y + 12,
+                4,
+                fill="#E7E2F2",
+                outline="#9B8FB8",
+                width=1,
+            )
+            canvas.create_text(x + width - 11, y + 7, text="H", fill="#4A3F6B", font=("Arial", 7, "bold"))
+
     def _is_multi_select_event(self, event) -> bool:
         state = getattr(event, "state", 0)
         return bool(state & 0x0001 or state & 0x0004)
@@ -594,6 +618,7 @@ class EditorGateMixin:
                 pending.append(tray_ref)
 
         if not pending:
+            self.selected_tray_hidden_modifier.set(False)
             self.selected_tray_ice_modifier.set(False)
             self.selected_tray_remote_modifier.set(False)
             self.update_selected_tray_modifier_state()
@@ -604,6 +629,7 @@ class EditorGateMixin:
             tray = self._get_tray_by_ref(tray_ref)
             if tray is not None:
                 tray["modifiers"] = []
+        self.selected_tray_hidden_modifier.set(False)
         self.selected_tray_ice_modifier.set(False)
         self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
         self.selected_tray_remote_modifier.set(False)

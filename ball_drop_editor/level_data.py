@@ -123,8 +123,11 @@ def make_tray_modifiers(
     ice_hp: int = TRAY_ICE_DEFAULT_HP,
     remote: bool = False,
     connection_id: str = "",
+    hidden: bool = False,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
+    if hidden:
+        modifiers.append({"type": "Hidden"})
     if ice:
         modifiers.append({
             "type": "Ice",
@@ -397,6 +400,8 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
                     found.add("IceTray")
                 elif modifier_type == "RemoteConnected":
                     found.add("ConnectedTray")
+                elif modifier_type == "Hidden":
+                    found.add("HiddenTray")
 
     return [mechanic_id for mechanic_id in MECHANIC_IDS if mechanic_id in found]
 
