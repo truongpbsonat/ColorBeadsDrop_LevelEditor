@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .constants import TRAY_ICE_DEFAULT_HP
 from .level_data import normalize_runtime_level
+from .validator import LevelValidator
 
 CONVEYOR_SLOTS = 30
 GATE_PICKUP_RANGES = {
@@ -827,6 +828,16 @@ class DeepSearchSolver:
 
     def solve_file(self, path: str, cancel_check=None) -> SolveResult:
         started = time.monotonic()
+        obstacle_errors = LevelValidator().validate_obstacle_rules(self.simulator.level)
+        if obstacle_errors:
+            return SolveResult(
+                file_path=path,
+                status="ERROR",
+                elapsed=time.monotonic() - started,
+                message="Obstacle rule violation:\n" + "\n".join(
+                    f"- {error}" for error in obstacle_errors
+                ),
+            )
         balance_errors = self.simulator.capacity_balance_errors()
         if balance_errors:
             return SolveResult(

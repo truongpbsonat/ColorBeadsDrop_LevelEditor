@@ -29,11 +29,7 @@
             "shooterId": "s_0_1_0e7d",
             "colorId": "Red",
             "capacity": 9,
-            "modifiers": [
-              {
-                "type": "Hidden"
-              }
-            ]
+            "modifiers": []
           }
         }
       },
@@ -48,7 +44,12 @@
             "shooterId": "s_0_2_9cc7",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Arrow",
+                "direction": "Down"
+              }
+            ]
           }
         }
       },
@@ -63,7 +64,12 @@
             "shooterId": "s_0_3_d39d",
             "colorId": "Blue",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Arrow",
+                "direction": "Right"
+              }
+            ]
           }
         }
       },
@@ -84,9 +90,7 @@
               },
               {
                 "type": "Ice",
-                "hp": 15,
-                "canClickWhileFrozen": false,
-                "blocksActivation": true
+                "hp": 15
               }
             ]
           }
@@ -187,7 +191,12 @@
             "shooterId": "s_2_1_62f6",
             "colorId": "Green",
             "capacity": 9,
-            "modifiers": []
+            "modifiers": [
+              {
+                "type": "Hammer",
+                "color": "Blue"
+              }
+            ]
           }
         }
       },
@@ -462,7 +471,25 @@
         }
       }
     ],
-    "obstacles": [],
+    "obstacles": [
+      {
+        "obstacleId": "glass_81321d",
+        "type": "GlassBarrier",
+        "shape": {
+          "type": "LineHorizontal",
+          "origin": {
+            "row": 3,
+            "column": 2
+          },
+          "width": 4,
+          "height": 1,
+          "cells": []
+        },
+        "direction": "Right",
+        "length": 4,
+        "color": "Blue"
+      }
+    ],
     "shooterGroups": []
   },
   "gateSystem": {
@@ -479,7 +506,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_e4f15e",
@@ -488,7 +516,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_74ccde",
@@ -496,6 +525,12 @@
               {
                 "colorId": "Purple",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "RemoteConnected",
+                "connectionId": "1"
               }
             ]
           },
@@ -506,7 +541,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_e8aa7d",
@@ -515,7 +551,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6f4123",
@@ -524,7 +561,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4d96c6",
@@ -533,7 +571,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_25ef85",
@@ -542,7 +581,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_731124",
@@ -551,7 +591,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_5f5763",
@@ -560,7 +601,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_1c8400",
@@ -569,7 +611,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_5ff5b8",
@@ -578,7 +621,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_dd8903",
@@ -587,7 +631,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_b08ba1",
@@ -596,7 +641,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -610,6 +656,12 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
+            ],
+            "modifiers": [
+              {
+                "type": "RemoteConnected",
+                "connectionId": "1"
+              }
             ]
           },
           {
@@ -619,7 +671,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_e801de",
@@ -628,7 +681,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_7009df",
@@ -637,7 +691,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_423dab",
@@ -646,7 +701,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_d34edc",
@@ -655,7 +711,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ccf01a",
@@ -664,7 +721,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_de6ebb",
@@ -673,7 +731,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_a29644",
@@ -682,7 +741,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_f65d6c",
@@ -691,7 +751,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4945fb",
@@ -700,7 +761,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_146ca8",
@@ -709,7 +771,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_79c38a",
@@ -718,7 +781,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_ad52a3",
@@ -727,7 +791,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_d4beda",
@@ -736,7 +801,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -750,7 +816,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_79fea8",
@@ -759,7 +826,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_93f375",
@@ -768,7 +836,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6721de",
@@ -777,7 +846,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_f8de7e",
@@ -785,6 +855,12 @@
               {
                 "colorId": "Purple",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "RemoteConnected",
+                "connectionId": "2"
               }
             ]
           },
@@ -795,7 +871,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_41f73d",
@@ -804,7 +881,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_c33f0f",
@@ -813,7 +891,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_fdd09b",
@@ -822,7 +901,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_1a7147",
@@ -831,7 +911,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_02b5f4",
@@ -840,7 +921,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_b455a1",
@@ -849,7 +931,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_3dec10",
@@ -858,7 +941,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_1498b3",
@@ -867,7 +951,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -881,7 +966,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_4010d9",
@@ -890,7 +976,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_7cc405",
@@ -899,7 +986,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_3c6a99",
@@ -908,7 +996,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_8f3800",
@@ -916,6 +1005,12 @@
               {
                 "colorId": "Red",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "RemoteConnected",
+                "connectionId": "2"
               }
             ]
           },
@@ -926,7 +1021,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_8c339e",
@@ -935,7 +1031,8 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_299a90",
@@ -944,7 +1041,8 @@
                 "colorId": "Yellow",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_21aeb7",
@@ -953,7 +1051,8 @@
                 "colorId": "Red",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_6a21a7",
@@ -962,7 +1061,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_07d466",
@@ -971,7 +1071,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_616882",
@@ -980,7 +1081,8 @@
                 "colorId": "Purple",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_915b9f",
@@ -989,7 +1091,8 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_c89541",
@@ -998,10 +1101,18 @@
                 "colorId": "Green",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           }
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "IceShooter",
+    "HiddenShooter",
+    "GlassBarrier",
+    "ConnectedTray",
+    "ArrowShooter"
+  ]
 }
