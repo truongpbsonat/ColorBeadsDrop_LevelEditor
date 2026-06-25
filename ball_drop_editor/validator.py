@@ -187,7 +187,7 @@ class LevelValidator:
         if not has_initial_active_shooter:
             warnings.append("No shooter active initially.")
 
-        self._validate_remote_connection_pairs(level, errors)
+        errors.extend(self.validate_obstacle_rules(level))
         self._validate_mechanics(level, errors, warnings)
 
         if not errors and not warnings:
@@ -317,6 +317,7 @@ class LevelValidator:
                 if color not in BALL_COLORS or color == "None":
                     errors.append(f"GlassBarrier {obstacle.get('obstacleId')} có color không hợp lệ: {color}.")
                 affected_cells = self._expand_lockbar_shape(obstacle)
+                self._validate_glass_barrier_ends(obstacle, affected_cells, entities_by_pos, rows, cols, errors)
             else:
                 continue
 
@@ -325,6 +326,33 @@ class LevelValidator:
                     errors.append(f"Obstacle {obstacle.get('obstacleId')} shape cell ({r},{c}) outside grid.")
                     continue
                 blocked[r][c] = True
+
+    def _validate_glass_barrier_ends(
+        self,
+        obstacle: Dict[str, Any],
+        affected_cells: List[Tuple[int, int]],
+        entities_by_pos: Dict[Tuple[int, int], Dict[str, Any]],
+        rows: int,
+        cols: int,
+        errors: List[str],
+    ) -> None:
+        if not affected_cells:
+            return
+        obstacle_id = obstacle.get("obstacleId")
+        direction = obstacle.get("direction", "Right")
+        ends = [
+            self._offset(affected_cells[0][0], affected_cells[0][1], self._opposite_direction(direction)),
+            self._offset(affected_cells[-1][0], affected_cells[-1][1], direction),
+        ]
+        for end in ends:
+            if not (0 <= end[0] < rows and 0 <= end[1] < cols):
+                errors.append(
+                    f"GlassBarrier {obstacle_id} có đầu tại {end} nằm ngoài grid; 2 đầu phải gắn vào Wall."
+                )
+                continue
+            entity = entities_by_pos.get(end)
+            if not entity or entity.get("type") != "Wall":
+                errors.append(f"GlassBarrier {obstacle_id} đầu tại {end} phải gắn vào Wall.")
 
     def _validate_lockbar_cells(
         self,
@@ -379,22 +407,166 @@ class LevelValidator:
             if group_type == "Connected" and len(group.get("shooterIds", []) or []) < 2:
                 warnings.append(f"ShooterGroup {group_id} Connected should have at least 2 shooters.")
 
+    def validate_obstacle_rules(self, level: Dict[str, Any]) -> List[str]:
+        """Structural rules for the newer obstacles (ArrowShooter / ConnectedTray /
+        GlassBarrier+Hammer). Shared by validate() and the playtest tool so both report
+        the same errors."""
+        errors: List[str] = []
+        grid = level.get("grid", {}) or {}
+        self._validate_arrow_shooters(grid, errors)
+        self._validate_remote_connection_pairs(level, errors)
+        self._validate_glass_hammer_pairs(level, errors)
+        return errors
+
+    def _validate_arrow_shooters(self, grid: Dict[str, Any], errors: List[str]) -> None:
+        rows = grid.get("rows", 0)
+        cols = grid.get("columns", 0)
+        entities_by_pos = {
+            (cell.get("row"), cell.get("column")): cell.get("entity")
+            for cell in grid.get("cells", []) or []
+            if cell.get("entity") is not None
+        }
+        for (row, col), entity in entities_by_pos.items():
+            if not isinstance(row, int) or not isinstance(col, int):
+                continue
+            if not entity or entity.get("type") != "Shooter":
+                continue
+            shooter = entity.get("shooter") or {}
+            shooter_id = shooter.get("shooterId") or "?"
+            for modifier in shooter.get("modifiers", []) or []:
+                if not isinstance(modifier, dict) or modifier.get("type") != "Arrow":
+                    continue
+                direction = modifier.get("direction")
+                if direction not in DIRECTIONS:
+                    continue  # invalid direction already reported in _validate_modifiers
+                target = self._offset(row, col, direction)
+                if not (0 <= target[0] < rows and 0 <= target[1] < cols):
+                    errors.append(
+                        f"Arrow shooter {shooter_id} tại ({row},{col}) hướng {direction} ra ngoài grid."
+                    )
+                    continue
+                target_entity = entities_by_pos.get(target)
+                if target_entity and target_entity.get("type") in ("Wall", "Tunnel"):
+                    errors.append(
+                        f"Arrow shooter {shooter_id} tại ({row},{col}) hướng {direction} "
+                        f"vào {target_entity.get('type')} tại {target}."
+                    )
+
     def _validate_remote_connection_pairs(self, level: Dict[str, Any], errors: List[str]) -> None:
-        trays_by_connection: Dict[str, List[str]] = defaultdict(list)
+        connections: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for gate in level.get("gateSystem", {}).get("gates", []):
-            for tray in gate.get("trayQueue", []):
-                for modifier in tray.get("modifiers", []):
+            gate_index = gate.get("gateIndex")
+            for position, tray in enumerate(gate.get("trayQueue", []) or []):
+                for modifier in tray.get("modifiers", []) or []:
                     if not isinstance(modifier, dict) or modifier.get("type") != "RemoteConnected":
                         continue
                     connection_id = str(modifier.get("connectionId", "")).strip()
                     if connection_id:
-                        trays_by_connection[connection_id].append(tray.get("trayId") or "?")
-        for connection_id, tray_ids in sorted(trays_by_connection.items()):
-            if len(tray_ids) != 2:
+                        connections[connection_id].append({
+                            "gateIndex": gate_index,
+                            "position": position,
+                            "trayId": tray.get("trayId") or "?",
+                        })
+
+        valid_pairs: Dict[str, Tuple[Dict[str, Any], Dict[str, Any]]] = {}
+        for connection_id, members in sorted(connections.items()):
+            if len(members) != 2:
+                tray_ids = [member["trayId"] for member in members]
                 errors.append(
-                    f"RemoteConnected connectionId '{connection_id}' phải nối đúng 2 tray, "
-                    f"hiện có {len(tray_ids)} (trays: {', '.join(tray_ids)})."
+                    f"ConnectedTray connectionId '{connection_id}' phải nối đúng 2 tray, "
+                    f"hiện có {len(members)} (trays: {', '.join(tray_ids)})."
                 )
+                continue
+            first, second = members
+            if first["gateIndex"] == second["gateIndex"]:
+                errors.append(
+                    f"ConnectedTray '{connection_id}': tray {first['trayId']} và {second['trayId']} "
+                    f"cùng nằm ở gate {first['gateIndex']}; cặp ConnectedTray không được cùng 1 gate."
+                )
+                continue
+            if (
+                not isinstance(first["gateIndex"], int)
+                or not isinstance(second["gateIndex"], int)
+                or abs(first["gateIndex"] - second["gateIndex"]) != 1
+            ):
+                errors.append(
+                    f"ConnectedTray '{connection_id}': tray {first['trayId']} (gate {first['gateIndex']}) "
+                    f"và {second['trayId']} (gate {second['gateIndex']}) phải nằm ở 2 gate cạnh nhau."
+                )
+                continue
+            valid_pairs[connection_id] = (first, second)
+
+        self._validate_connection_crossings(valid_pairs, errors)
+
+    def _validate_connection_crossings(
+        self,
+        valid_pairs: Dict[str, Tuple[Dict[str, Any], Dict[str, Any]]],
+        errors: List[str],
+    ) -> None:
+        by_gate_pair: Dict[Tuple[int, int], List[Tuple[str, int, int]]] = defaultdict(list)
+        for connection_id, (first, second) in valid_pairs.items():
+            left, right = sorted((first, second), key=lambda member: member["gateIndex"])
+            by_gate_pair[(left["gateIndex"], right["gateIndex"])].append(
+                (connection_id, left["position"], right["position"])
+            )
+        for (left_gate, right_gate), conns in sorted(by_gate_pair.items()):
+            for i in range(len(conns)):
+                for j in range(i + 1, len(conns)):
+                    id_a, left_a, right_a = conns[i]
+                    id_b, left_b, right_b = conns[j]
+                    if (left_a - left_b) * (right_a - right_b) < 0:
+                        errors.append(
+                            f"ConnectedTray '{id_a}' và '{id_b}' bắt chéo nhau "
+                            f"giữa gate {left_gate} và gate {right_gate}."
+                        )
+
+    def _validate_glass_hammer_pairs(self, level: Dict[str, Any], errors: List[str]) -> None:
+        grid = level.get("grid", {}) or {}
+        glass_colors: Dict[str, int] = defaultdict(int)
+        hammer_colors: Dict[str, int] = defaultdict(int)
+        for obstacle in grid.get("obstacles", []) or []:
+            if obstacle.get("type") == "GlassBarrier":
+                color = obstacle.get("color")
+                if color in BALL_COLORS and color != "None":
+                    glass_colors[color] += 1
+        for shooter in self._iter_all_shooters(grid):
+            for modifier in shooter.get("modifiers", []) or []:
+                if isinstance(modifier, dict) and modifier.get("type") == "Hammer":
+                    color = modifier.get("color")
+                    if color in BALL_COLORS and color != "None":
+                        hammer_colors[color] += 1
+        for color in sorted(set(glass_colors) | set(hammer_colors)):
+            glass_count = glass_colors.get(color, 0)
+            hammer_count = hammer_colors.get(color, 0)
+            if glass_count and not hammer_count:
+                errors.append(
+                    f"GlassBarrier màu {color} thiếu Hammer cùng màu "
+                    f"(mỗi level phải có đủ cặp GlassBarrier + Hammer cùng màu)."
+                )
+            elif hammer_count and not glass_count:
+                errors.append(
+                    f"Hammer màu {color} thiếu GlassBarrier cùng màu "
+                    f"(mỗi level phải có đủ cặp GlassBarrier + Hammer cùng màu)."
+                )
+            elif glass_count > 1 or hammer_count > 1:
+                errors.append(
+                    f"Có nhiều cặp GlassBarrier/Hammer cùng màu {color} "
+                    f"({glass_count} GlassBarrier, {hammer_count} Hammer); mỗi cặp phải khác màu."
+                )
+
+    def _iter_all_shooters(self, grid: Dict[str, Any]):
+        for cell in grid.get("cells", []) or []:
+            entity = cell.get("entity")
+            if not entity:
+                continue
+            if entity.get("type") == "Shooter":
+                shooter = entity.get("shooter")
+                if isinstance(shooter, dict):
+                    yield shooter
+            elif entity.get("type") == "Tunnel":
+                for shooter in entity.get("shooterQueue", []) or []:
+                    if isinstance(shooter, dict):
+                        yield shooter
 
     def _validate_mechanics(self, level: Dict[str, Any], errors: List[str], warnings: List[str]) -> None:
         mechanics = level.get("mechanics", [])
