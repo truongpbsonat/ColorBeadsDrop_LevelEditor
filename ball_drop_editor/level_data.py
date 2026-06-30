@@ -94,6 +94,8 @@ def make_shooter_modifiers(
     hammer_color: str = "None",
     arrow: bool = False,
     arrow_direction: str = "Up",
+    shutter: bool = False,
+    shutter_is_open: bool = True,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -115,6 +117,8 @@ def make_shooter_modifiers(
             "type": "Arrow",
             "direction": _enum_name(arrow_direction, DIRECTIONS, "Up"),
         })
+    if shutter:
+        modifiers.append({"type": "Shutter", "isOpen": shutter_is_open})
     return modifiers
 
 
@@ -309,6 +313,8 @@ def entity_label(entity: Optional[Dict[str, Any]]) -> str:
                 modifier_labels.append("Hm")
             elif modifier.get("type") == "Arrow":
                 modifier_labels.append(f"A{_DIRECTION_ARROWS.get(modifier.get('direction'), '?')}")
+            elif modifier.get("type") == "Shutter":
+                modifier_labels.append("Sh" if modifier.get("isOpen", True) else "Sh!")
         suffix = f"\n[{','.join(modifier_labels)}]" if modifier_labels else ""
         return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}{suffix}"
     if t == "Wall":
@@ -419,6 +425,8 @@ def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
             found.add("SpecialShooter")
         elif modifier_type == "Arrow":
             found.add("ArrowShooter")
+        elif modifier_type == "Shutter":
+            found.add("ShutterShooter")
         elif modifier_type == "Hammer":
             # Hammer is the tool that breaks a same-color GlassBarrier; it is not a
             # standalone mechanic but always implies the GlassBarrier mechanic.
@@ -613,6 +621,8 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
         normalized["color"] = _enum_name(modifier.get("color"), BALL_COLORS, "None")
     elif modifier_type == "Arrow":
         normalized["direction"] = _enum_name(modifier.get("direction"), DIRECTIONS, "Up")
+    elif modifier_type == "Shutter":
+        normalized["isOpen"] = bool(modifier.get("isOpen", True))
     return normalized
 
 

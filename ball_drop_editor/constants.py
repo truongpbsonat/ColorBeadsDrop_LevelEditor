@@ -35,7 +35,7 @@ COLOR_HEX = {
 ENTITY_TYPES = ["Empty", "Shooter", "Wall", "Tunnel"]
 RUNTIME_ENTITY_TYPES = ["Shooter", "Wall", "Tunnel"]
 DIRECTIONS = ["Up", "Down", "Left", "Right"]
-SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special", "Hammer", "Arrow"]
+SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special", "Hammer", "Arrow", "Shutter"]
 SHOOTER_FIXED_CAPACITY = 9
 TRAY_MODIFIER_TYPES = ["Ice", "RemoteConnected", "Hidden"]
 TRAY_ICE_DEFAULT_HP = 2
@@ -81,6 +81,7 @@ MECHANIC_IDS = [
     "ConnectedTray",
     "HiddenTray",
     "ArrowShooter",
+    "ShutterShooter",
 ]
 
 MECHANIC_ID_ALIASES = {

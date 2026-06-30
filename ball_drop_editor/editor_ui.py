@@ -327,6 +327,8 @@ class EditorUiMixin:
         self.cell_edit_ice_hp = tk.IntVar(value=1)
         self.cell_edit_hammer_color = tk.StringVar(value="Blue")
         self.cell_edit_arrow_direction = tk.StringVar(value="Up")
+        self.cell_edit_shutter_modifier = tk.BooleanVar(value=False)
+        self.cell_edit_shutter_is_open = tk.StringVar(value="Open")
         self.cell_edit_tunnel_direction = tk.StringVar(value="Up")
         self.cell_edit_tunnel_queue_index: Optional[int] = None
 
@@ -445,6 +447,12 @@ class EditorUiMixin:
             self.cell_edit_arrow_modifier,
             command=lambda: self.apply_modifier_button_change("Arrow"),
         ).grid(row=2, column=1, sticky="nsew", padx=2, pady=2)
+        self._toggle_button(
+            modifier_frame,
+            "Shutter",
+            self.cell_edit_shutter_modifier,
+            command=lambda: self.apply_modifier_button_change("Shutter"),
+        ).grid(row=2, column=2, sticky="nsew", padx=2, pady=2)
 
         hammer_arrow_row = ttk.Frame(modifier_frame)
         hammer_arrow_row.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(6, 0))
@@ -468,6 +476,21 @@ class EditorUiMixin:
         )
         self.cell_edit_arrow_direction_combo.pack(side="left", padx=(6, 0))
         self.cell_edit_arrow_direction_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_modifier_button_change("Arrow"))
+
+        shutter_row = ttk.Frame(modifier_frame)
+        shutter_row.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        ttk.Label(shutter_row, text="Shutter State").pack(side="left")
+        self.cell_edit_shutter_state_combo = ttk.Combobox(
+            shutter_row,
+            textvariable=self.cell_edit_shutter_is_open,
+            values=["Open", "Closed"],
+            state="readonly",
+            width=8,
+        )
+        self.cell_edit_shutter_state_combo.pack(side="left", padx=(6, 0))
+        self.cell_edit_shutter_state_combo.bind(
+            "<<ComboboxSelected>>", lambda e: self.apply_modifier_button_change("Shutter")
+        )
 
         tunnel_frame = ttk.LabelFrame(frame, text="Tunnel direction", padding=6)
         tunnel_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
