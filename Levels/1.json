@@ -132,6 +132,12 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
+            ],
+            "modifiers": [
+              {
+                "type": "RemoteConnected",
+                "connectionId": "1"
+              }
             ]
           },
           {
@@ -141,7 +147,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_a030cc",
@@ -149,6 +156,11 @@
               {
                 "colorId": "Blue",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Hidden"
               }
             ]
           }
@@ -158,17 +170,14 @@
         "gateIndex": 1,
         "trayQueue": [
           {
-            "trayId": "t_002",
+            "trayId": "t_7ef491",
             "layers": [
               {
                 "colorId": "Orange",
                 "requiredCount": 3
-              },
-              {
-                "colorId": "Blue",
-                "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_75341d",
@@ -176,6 +185,15 @@
               {
                 "colorId": "Orange",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Hidden"
+              },
+              {
+                "type": "RemoteConnected",
+                "connectionId": "1"
               }
             ]
           },
@@ -186,7 +204,18 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
+          },
+          {
+            "trayId": "t_3f2666",
+            "layers": [
+              {
+                "colorId": "Orange",
+                "requiredCount": 3
+              }
+            ],
+            "modifiers": []
           }
         ]
       },
@@ -194,13 +223,14 @@
         "gateIndex": 2,
         "trayQueue": [
           {
-            "trayId": "t_7ef491",
+            "trayId": "t_002",
             "layers": [
               {
-                "colorId": "Orange",
+                "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_9b4769",
@@ -208,6 +238,11 @@
               {
                 "colorId": "Blue",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Hidden"
               }
             ]
           },
@@ -217,6 +252,11 @@
               {
                 "colorId": "Orange",
                 "requiredCount": 3
+              }
+            ],
+            "modifiers": [
+              {
+                "type": "Hidden"
               }
             ]
           }
@@ -232,7 +272,8 @@
                 "colorId": "Blue",
                 "requiredCount": 3
               }
-            ]
+            ],
+            "modifiers": []
           },
           {
             "trayId": "t_80a340",
@@ -241,10 +282,19 @@
                 "colorId": "Orange",
                 "requiredCount": 3
               }
+            ],
+            "modifiers": [
+              {
+                "type": "Hidden"
+              }
             ]
           }
         ]
       }
     ]
-  }
+  },
+  "mechanics": [
+    "ConnectedTray",
+    "HiddenTray"
+  ]
 }

@@ -339,11 +339,8 @@ class LevelValidator:
         if not affected_cells:
             return
         obstacle_id = obstacle.get("obstacleId")
-        direction = obstacle.get("direction", "Right")
-        ends = [
-            self._offset(affected_cells[0][0], affected_cells[0][1], self._opposite_direction(direction)),
-            self._offset(affected_cells[-1][0], affected_cells[-1][1], direction),
-        ]
+        # The two ends of the barrier are its own first and last cells; both must sit on a Wall.
+        ends = [affected_cells[0], affected_cells[-1]]
         for end in ends:
             if not (0 <= end[0] < rows and 0 <= end[1] < cols):
                 errors.append(
