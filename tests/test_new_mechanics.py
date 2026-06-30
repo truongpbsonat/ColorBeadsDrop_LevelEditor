@@ -22,7 +22,7 @@ def _level_with_new_mechanics(connection_id_b: str = "link") -> dict:
         "mechanics": [],
         "grid": {
             "rows": 2,
-            "columns": 5,
+            "columns": 3,
             "cells": [
                 {
                     "row": 0,
@@ -44,7 +44,7 @@ def _level_with_new_mechanics(connection_id_b: str = "link") -> dict:
                         },
                     },
                 },
-                # Walls anchoring the two ends of the Blue GlassBarrier below.
+                # Walls sit on the two end cells of the Blue GlassBarrier below.
                 {
                     "row": 1,
                     "column": 0,
@@ -52,7 +52,7 @@ def _level_with_new_mechanics(connection_id_b: str = "link") -> dict:
                 },
                 {
                     "row": 1,
-                    "column": 4,
+                    "column": 2,
                     "entity": {"type": "Wall", "entityId": "wR", "blocksPath": True},
                 },
             ],
@@ -65,7 +65,7 @@ def _level_with_new_mechanics(connection_id_b: str = "link") -> dict:
                     "color": "Blue",
                     "shape": {
                         "type": "LineHorizontal",
-                        "origin": {"row": 1, "column": 1},
+                        "origin": {"row": 1, "column": 0},
                         "width": 3,
                         "height": 1,
                         "cells": [],
@@ -163,7 +163,7 @@ class NewMechanicValidationTests(unittest.TestCase):
         # Remove the right-end wall, leaving that end of the barrier unanchored.
         level["grid"]["cells"] = [
             cell for cell in level["grid"]["cells"]
-            if not (cell["row"] == 1 and cell["column"] == 4)
+            if not (cell["row"] == 1 and cell["column"] == 2)
         ]
         norm = normalize_runtime_level(copy.deepcopy(level))
         errors, _warnings = LevelValidator().validate(norm)

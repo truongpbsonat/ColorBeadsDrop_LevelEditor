@@ -76,6 +76,34 @@ def replace_level_color(level: Dict[str, Any], source_color: str, replacement_co
     return changed
 
 
+def swap_level_colors(level: Dict[str, Any], color_a: str, color_b: str) -> int:
+    """Swap two colors in place: every colorId equal to color_a becomes color_b and
+    vice versa. Touches the same fields as replace_level_color (shooter colorId and
+    tray layer colorId) so both operations stay consistent."""
+    changed = 0
+    if not color_a or not color_b or color_a == color_b:
+        return changed
+
+    for shooter in _iter_level_shooters(level):
+        current = shooter.get("colorId")
+        if current == color_a:
+            shooter["colorId"] = color_b
+            changed += 1
+        elif current == color_b:
+            shooter["colorId"] = color_a
+            changed += 1
+
+    for layer in _iter_level_tray_layers(level):
+        current = layer.get("colorId")
+        if current == color_a:
+            layer["colorId"] = color_b
+            changed += 1
+        elif current == color_b:
+            layer["colorId"] = color_a
+            changed += 1
+    return changed
+
+
 def load_level_color_summary(path: str) -> LevelColorSummary:
     try:
         with open(path, "r", encoding="utf-8") as file:
@@ -244,11 +272,13 @@ class LevelColorReplaceTool(tk.Toplevel):
             )
             button.grid(row=index // 11, column=index % 11, padx=2, pady=2)
 
-        ttk.Button(replace_frame, text="Apply To Selected Level(s)", command=self.apply_replace).grid(
-            row=0,
-            column=6,
-            sticky="e",
-            padx=(12, 0),
+        action_buttons = ttk.Frame(replace_frame)
+        action_buttons.grid(row=0, column=6, rowspan=2, sticky="e", padx=(12, 0))
+        ttk.Button(action_buttons, text="Apply To Selected Level(s)", command=self.apply_replace).pack(
+            fill="x"
+        )
+        ttk.Button(action_buttons, text="Swap Source ↔ Replacement", command=self.apply_swap).pack(
+            fill="x", pady=(6, 0)
         )
 
         ttk.Label(root, textvariable=self.status_var, anchor="w").grid(row=3, column=0, sticky="ew", pady=(8, 0))
@@ -593,6 +623,51 @@ class LevelColorReplaceTool(tk.Toplevel):
         ):
             return
 
+        self._run_color_operation(target_paths, paths, lambda level: replace_level_color(level, source_color, replacement_color))
+
+    def apply_swap(self) -> None:
+        paths = self.selected_paths()
+        if not paths:
+            messagebox.showwarning("Color Tool", "Select one or more levels first.")
+            return
+
+        source_color = self.source_color_var.get()
+        replacement_color = self.replacement_color_var.get()
+        if not source_color:
+            messagebox.showwarning("Color Tool", "Choose a source color first.")
+            return
+        if replacement_color not in SELECTABLE_BALL_COLORS:
+            messagebox.showwarning("Color Tool", "Choose a replacement color from the palette.")
+            return
+        if source_color == replacement_color:
+            messagebox.showinfo("Color Tool", "Source and replacement colors are the same.")
+            return
+
+        target_paths = [
+            summary.path
+            for summary in self.selected_summaries()
+            if not summary.error and (source_color in summary.colors or replacement_color in summary.colors)
+        ]
+        if not target_paths:
+            messagebox.showinfo("Color Tool", f"No selected level uses {source_color} or {replacement_color}.")
+            return
+
+        if not messagebox.askyesno(
+            "Swap Colors",
+            f"Swap all {source_color} ↔ {replacement_color} colorId fields in "
+            f"{len(target_paths)} selected level file(s)?\n\n"
+            "This edits the JSON files on disk.",
+        ):
+            return
+
+        self._run_color_operation(target_paths, paths, lambda level: swap_level_colors(level, source_color, replacement_color))
+
+    def _run_color_operation(
+        self,
+        target_paths: Sequence[str],
+        fallback_paths: Sequence[str],
+        mutate: Callable[[Dict[str, Any]], int],
+    ) -> None:
         changed_paths: List[str] = []
         total_changes = 0
         errors: List[str] = []
@@ -603,7 +678,7 @@ class LevelColorReplaceTool(tk.Toplevel):
                 if not isinstance(level, dict):
                     errors.append(f"{os.path.basename(path)}: root JSON is not an object")
                     continue
-                changes = replace_level_color(level, source_color, replacement_color)
+                changes = mutate(level)
                 if changes <= 0:
                     continue
                 with open(path, "w", encoding="utf-8") as file:
@@ -614,7 +689,7 @@ class LevelColorReplaceTool(tk.Toplevel):
             except Exception as exc:
                 errors.append(f"{os.path.basename(path)}: {exc}")
 
-        self.scan_folder(select_paths=changed_paths or paths)
+        self.scan_folder(select_paths=changed_paths or list(fallback_paths))
         if changed_paths and self.on_levels_changed:
             self.on_levels_changed(changed_paths)
 
