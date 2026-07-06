@@ -289,5 +289,132 @@ class NewMechanicValidationTests(unittest.TestCase):
         self.assertTrue(any("nhiều cặp" in error and "Blue" in error for error in errors))
 
 
+def _level_with_lock_key() -> dict:
+    """Minimal level with one Lock tray and one Key shooter."""
+    return {
+        "level": 1,
+        "time": 60,
+        "levelName": "t",
+        "mechanics": [],
+        "grid": {
+            "rows": 1,
+            "columns": 1,
+            "cells": [
+                {
+                    "row": 0,
+                    "column": 0,
+                    "entity": {
+                        "type": "Shooter",
+                        "entityId": "e1",
+                        "blocksPath": True,
+                        "shooter": {
+                            "shooterId": "s1",
+                            "colorId": "Blue",
+                            "capacity": 9,
+                            "modifiers": make_shooter_modifiers(key=True),
+                        },
+                    },
+                }
+            ],
+            "obstacles": [],
+            "shooterGroups": [],
+        },
+        "gateSystem": {
+            "gateCount": 1,
+            "maxVisibleTrayPerGate": 4,
+            "gates": [
+                {
+                    "gateIndex": 0,
+                    "trayQueue": [
+                        {
+                            "trayId": "t1",
+                            "layers": [{"colorId": "Blue", "requiredCount": 9}],
+                            "modifiers": make_tray_modifiers(lock=True),
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+
+
+class TestKeyLockModifiers(unittest.TestCase):
+    def test_make_tray_lock_modifier(self) -> None:
+        mods = make_tray_modifiers(lock=True)
+        self.assertEqual(mods, [{"type": "Lock"}])
+
+    def test_make_tray_lock_not_included_by_default(self) -> None:
+        mods = make_tray_modifiers()
+        self.assertNotIn({"type": "Lock"}, mods)
+
+    def test_make_shooter_key_modifier(self) -> None:
+        mods = make_shooter_modifiers(key=True)
+        self.assertEqual(mods, [{"type": "Key"}])
+
+    def test_make_shooter_key_not_included_by_default(self) -> None:
+        mods = make_shooter_modifiers()
+        self.assertNotIn({"type": "Key"}, mods)
+
+    def test_normalize_preserves_lock(self) -> None:
+        result = normalize_runtime_level(copy.deepcopy(_level_with_lock_key()))
+        tray_mods = result["gateSystem"]["gates"][0]["trayQueue"][0]["modifiers"]
+        self.assertEqual(tray_mods, [{"type": "Lock"}])
+
+    def test_normalize_preserves_key(self) -> None:
+        result = normalize_runtime_level(copy.deepcopy(_level_with_lock_key()))
+        shooter_mods = result["grid"]["cells"][0]["entity"]["shooter"]["modifiers"]
+        self.assertEqual(shooter_mods, [{"type": "Key"}])
+
+    def test_validator_accepts_lock_tray(self) -> None:
+        level = normalize_runtime_level(copy.deepcopy(_level_with_lock_key()))
+        errors, _ = LevelValidator().validate(level)
+        self.assertFalse(any("Lock" in e for e in errors))
+
+    def test_validator_accepts_key_shooter(self) -> None:
+        level = normalize_runtime_level(copy.deepcopy(_level_with_lock_key()))
+        errors, _ = LevelValidator().validate(level)
+        self.assertFalse(any("Key" in e for e in errors))
+
+    def test_detect_mechanics_finds_key_lock(self) -> None:
+        norm = normalize_runtime_level(copy.deepcopy(_level_with_lock_key()))
+        mechanics = detect_mechanics(norm)
+        self.assertIn("KeyLock", mechanics)
+
+    def test_validator_errors_when_more_keys_than_locks(self) -> None:
+        level = copy.deepcopy(_level_with_lock_key())
+        # Add a second Key shooter (column 1) but no extra Lock tray.
+        level["grid"]["columns"] = 2
+        level["grid"]["cells"].append({
+            "row": 0,
+            "column": 1,
+            "entity": {
+                "type": "Shooter",
+                "entityId": "e2",
+                "blocksPath": True,
+                "shooter": {
+                    "shooterId": "s2",
+                    "colorId": "Red",
+                    "capacity": 9,
+                    "modifiers": make_shooter_modifiers(key=True),
+                },
+            },
+        })
+        norm = normalize_runtime_level(copy.deepcopy(level))
+        errors, _ = LevelValidator().validate(norm)
+        self.assertTrue(any("Key" in e and "Lock" in e for e in errors))
+
+    def test_validator_errors_when_more_locks_than_keys(self) -> None:
+        level = copy.deepcopy(_level_with_lock_key())
+        # Add a second Lock tray but no extra Key shooter.
+        level["gateSystem"]["gates"][0]["trayQueue"].append({
+            "trayId": "t2",
+            "layers": [{"colorId": "Blue", "requiredCount": 9}],
+            "modifiers": make_tray_modifiers(lock=True),
+        })
+        norm = normalize_runtime_level(copy.deepcopy(level))
+        errors, _ = LevelValidator().validate(norm)
+        self.assertTrue(any("Key" in e and "Lock" in e for e in errors))
+
+
 if __name__ == "__main__":
     unittest.main()

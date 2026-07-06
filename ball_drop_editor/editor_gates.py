@@ -151,6 +151,7 @@ class EditorGateMixin:
                 self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
                 self.selected_tray_remote_modifier.set(False)
                 self.selected_tray_connection_id.set("")
+                self.selected_tray_lock_modifier.set(False)
                 self.update_selected_tray_modifier_state()
                 self.selected_layer_var.set(0)
                 self.selected_layer_color_var.set("Blue")
@@ -166,6 +167,7 @@ class EditorGateMixin:
             ice_modifier = self._tray_ice_modifier(tray)
             remote_modifier = self._tray_remote_modifier(tray)
             hidden_modifier = self._tray_hidden_modifier(tray)
+            lock_modifier = self._tray_lock_modifier(tray)
             self.gate_selection_label.configure(
                 text=f"{self._selection_summary()} / Layer {self.selected_layer_index}"
             )
@@ -180,6 +182,7 @@ class EditorGateMixin:
             self.selected_tray_connection_id.set(
                 str(remote_modifier.get("connectionId", "")) if remote_modifier is not None else ""
             )
+            self.selected_tray_lock_modifier.set(lock_modifier is not None)
             self.update_selected_tray_modifier_state()
             self.selected_layer_spin.configure(to=max(0, len(layers) - 1))
             self.selected_layer_var.set(self.selected_layer_index)
@@ -260,6 +263,11 @@ class EditorGateMixin:
             return None
         return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "Hidden"), None)
 
+    def _tray_lock_modifier(self, tray: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not tray:
+            return None
+        return next((modifier for modifier in tray.get("modifiers", []) if modifier.get("type") == "Lock"), None)
+
     def _selected_tray_modifiers(self) -> List[Dict[str, Any]]:
         return make_tray_modifiers(
             hidden=self.selected_tray_hidden_modifier.get(),
@@ -267,6 +275,7 @@ class EditorGateMixin:
             ice_hp=max(1, safe_int(str(self.selected_tray_ice_hp.get()), TRAY_ICE_DEFAULT_HP)),
             remote=self.selected_tray_remote_modifier.get(),
             connection_id=self.selected_tray_connection_id.get(),
+            lock=self.selected_tray_lock_modifier.get(),
         )
 
     def draw_gate_preview(self):
@@ -473,6 +482,21 @@ class EditorGateMixin:
             )
             canvas.create_text(x + width - 11, y + 7, text="H", fill="#4A3F6B", font=("Arial", 7, "bold"))
 
+        lock_mod = self._tray_lock_modifier(tray)
+        if lock_mod is not None:
+            self._create_round_rect(
+                canvas,
+                x + 3,
+                y + 2,
+                x + 17,
+                y + 12,
+                4,
+                fill="#FFE08C",
+                outline="#C8860A",
+                width=1,
+            )
+            canvas.create_text(x + 10, y + 7, text="L", fill="#5C3D00", font=("Arial", 7, "bold"))
+
     def _is_multi_select_event(self, event) -> bool:
         state = getattr(event, "state", 0)
         return bool(state & 0x0001 or state & 0x0004)
@@ -634,6 +658,7 @@ class EditorGateMixin:
         self.selected_tray_ice_hp.set(TRAY_ICE_DEFAULT_HP)
         self.selected_tray_remote_modifier.set(False)
         self.selected_tray_connection_id.set("")
+        self.selected_tray_lock_modifier.set(False)
         self.update_selected_tray_modifier_state()
         self.refresh_gate_direct_controls()
         self.draw_gate_preview()

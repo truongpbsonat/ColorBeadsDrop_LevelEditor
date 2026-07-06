@@ -330,6 +330,7 @@ class EditorUiMixin:
         self.cell_edit_arrow_direction = tk.StringVar(value="Up")
         self.cell_edit_shutter_modifier = tk.BooleanVar(value=False)
         self.cell_edit_shutter_is_open = tk.StringVar(value="Open")
+        self.cell_edit_key_modifier = tk.BooleanVar(value=False)
         self.cell_edit_tunnel_direction = tk.StringVar(value="Up")
         self.cell_edit_tunnel_queue_index: Optional[int] = None
 
@@ -493,6 +494,13 @@ class EditorUiMixin:
             "<<ComboboxSelected>>", lambda e: self.apply_modifier_button_change("Shutter")
         )
 
+        self._toggle_button(
+            modifier_frame,
+            "Key",
+            self.cell_edit_key_modifier,
+            command=lambda: self.apply_modifier_button_change("Key"),
+        ).grid(row=5, column=0, sticky="nsew", padx=2, pady=2)
+
         tunnel_frame = ttk.LabelFrame(frame, text="Tunnel direction", padding=6)
         tunnel_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         for index, direction in enumerate(DIRECTIONS):
@@ -593,6 +601,7 @@ class EditorUiMixin:
         self.selected_tray_ice_hp = tk.IntVar(value=TRAY_ICE_DEFAULT_HP)
         self.selected_tray_remote_modifier = tk.BooleanVar(value=False)
         self.selected_tray_connection_id = tk.StringVar()
+        self.selected_tray_lock_modifier = tk.BooleanVar(value=False)
 
         tray_buttons = ttk.Frame(controls)
         tray_buttons.grid(row=1, column=0, sticky="ew")
@@ -676,6 +685,15 @@ class EditorUiMixin:
         self.selected_tray_connection_id_entry.pack(side="left")
         self.selected_tray_connection_id_entry.bind("<Return>", self.apply_selected_tray_modifiers)
         self.selected_tray_connection_id_entry.bind("<FocusOut>", self.apply_selected_tray_modifiers)
+
+        lock_fields = ttk.Frame(controls)
+        lock_fields.grid(row=6, column=0, sticky="ew", pady=(3, 0))
+        ttk.Checkbutton(
+            lock_fields,
+            text="Tray Lock",
+            variable=self.selected_tray_lock_modifier,
+            command=self.on_selected_tray_modifier_change,
+        ).pack(side="left")
 
         self.update_selected_tray_modifier_state()
 

@@ -96,6 +96,7 @@ def make_shooter_modifiers(
     arrow_direction: str = "Up",
     shutter: bool = False,
     shutter_is_open: bool = True,
+    key: bool = False,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -119,6 +120,8 @@ def make_shooter_modifiers(
         })
     if shutter:
         modifiers.append({"type": "Shutter", "isOpen": shutter_is_open})
+    if key:
+        modifiers.append({"type": "Key"})
     return modifiers
 
 
@@ -128,6 +131,7 @@ def make_tray_modifiers(
     remote: bool = False,
     connection_id: str = "",
     hidden: bool = False,
+    lock: bool = False,
 ) -> List[Dict[str, Any]]:
     modifiers: List[Dict[str, Any]] = []
     if hidden:
@@ -142,6 +146,8 @@ def make_tray_modifiers(
             "type": "RemoteConnected",
             "connectionId": str(connection_id or "").strip(),
         })
+    if lock:
+        modifiers.append({"type": "Lock"})
     return modifiers
 
 
@@ -315,6 +321,8 @@ def entity_label(entity: Optional[Dict[str, Any]]) -> str:
                 modifier_labels.append(f"A{_DIRECTION_ARROWS.get(modifier.get('direction'), '?')}")
             elif modifier.get("type") == "Shutter":
                 modifier_labels.append("Sh" if modifier.get("isOpen", True) else "Sh!")
+            elif modifier.get("type") == "Key":
+                modifier_labels.append("K")
         suffix = f"\n[{','.join(modifier_labels)}]" if modifier_labels else ""
         return f"{shooter.get('colorId', '?')}\n{shooter.get('capacity', '?')}{suffix}"
     if t == "Wall":
@@ -408,6 +416,8 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
                     found.add("ConnectedTray")
                 elif modifier_type == "Hidden":
                     found.add("HiddenTray")
+                elif modifier_type == "Lock":
+                    found.add("KeyLock")
 
     return [mechanic_id for mechanic_id in MECHANIC_IDS if mechanic_id in found]
 
@@ -431,6 +441,8 @@ def _collect_shooter_modifiers(shooter: Dict[str, Any], found: set) -> None:
             # Hammer is the tool that breaks a same-color GlassBarrier; it is not a
             # standalone mechanic but always implies the GlassBarrier mechanic.
             found.add("GlassBarrier")
+        elif modifier_type == "Key":
+            found.add("KeyLock")
 
 
 def _normalize_cell(cell: Dict[str, Any], row: int, col: int) -> Dict[str, Any]:
@@ -623,6 +635,8 @@ def _normalize_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
         normalized["direction"] = _enum_name(modifier.get("direction"), DIRECTIONS, "Up")
     elif modifier_type == "Shutter":
         normalized["isOpen"] = bool(modifier.get("isOpen", True))
+    elif modifier_type == "Key":
+        pass
     return normalized
 
 
@@ -710,4 +724,6 @@ def _normalize_tray_modifier(modifier: Dict[str, Any]) -> Dict[str, Any]:
         normalized["hp"] = max(1, safe_int(str(modifier.get("hp", TRAY_ICE_DEFAULT_HP)), TRAY_ICE_DEFAULT_HP))
     elif modifier_type == "RemoteConnected":
         normalized["connectionId"] = str(modifier.get("connectionId", "")).strip()
+    elif modifier_type == "Lock":
+        pass
     return normalized

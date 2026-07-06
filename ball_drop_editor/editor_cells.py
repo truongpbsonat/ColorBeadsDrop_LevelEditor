@@ -162,6 +162,7 @@ class EditorCellsMixin:
             arrow_direction=self.cell_edit_arrow_direction.get(),
             shutter=self.cell_edit_shutter_modifier.get(),
             shutter_is_open=(self.cell_edit_shutter_is_open.get() == "Open"),
+            key=self.cell_edit_key_modifier.get(),
         )
 
     def _cell_editor_shooter_payload(self, existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -188,6 +189,8 @@ class EditorCellsMixin:
             elif modifier.get("type") == "Shutter":
                 state = "Open" if modifier.get("isOpen", True) else "Closed"
                 labels.append(f"Shutter {state}")
+            elif modifier.get("type") == "Key":
+                labels.append("Key")
         return ", ".join(labels)
 
     def _selected_tunnel_entity(self) -> Optional[Dict[str, Any]]:
@@ -312,12 +315,14 @@ class EditorCellsMixin:
         hammer = next((modifier for modifier in modifiers if modifier.get("type") == "Hammer"), None)
         arrow = next((modifier for modifier in modifiers if modifier.get("type") == "Arrow"), None)
         shutter = next((modifier for modifier in modifiers if modifier.get("type") == "Shutter"), None)
+        key = next((modifier for modifier in modifiers if modifier.get("type") == "Key"), None)
         self.cell_edit_hidden_modifier.set(hidden is not None)
         self.cell_edit_ice_modifier.set(ice is not None)
         self.cell_edit_special_modifier.set(special is not None)
         self.cell_edit_hammer_modifier.set(hammer is not None)
         self.cell_edit_arrow_modifier.set(arrow is not None)
         self.cell_edit_shutter_modifier.set(shutter is not None)
+        self.cell_edit_key_modifier.set(key is not None)
         if ice is not None:
             self.cell_edit_ice_hp.set(max(1, safe_int(str(ice.get("hp", 1)), 1)))
         if hammer is not None:
@@ -575,6 +580,8 @@ class EditorCellsMixin:
             elif enabled and modifier_type == "Shutter":
                 modifiers = [modifier for modifier in modifiers if modifier.get("type") != "Shutter"]
                 modifiers.append({"type": "Shutter", "isOpen": (self.cell_edit_shutter_is_open.get() == "Open")})
+            elif enabled and not existing and modifier_type == "Key":
+                modifiers.append({"type": "Key"})
             shooter["modifiers"] = modifiers
 
         if modifier_type == "Hidden":
@@ -606,6 +613,8 @@ class EditorCellsMixin:
             return self.cell_edit_arrow_modifier
         if modifier_type == "Shutter":
             return self.cell_edit_shutter_modifier
+        if modifier_type == "Key":
+            return self.cell_edit_key_modifier
         return self.cell_edit_ice_modifier
 
     def _grid_entity_fg(self, entity: Optional[Dict[str, Any]]) -> str:
