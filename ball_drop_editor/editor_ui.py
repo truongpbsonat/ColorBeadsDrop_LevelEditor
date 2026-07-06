@@ -126,8 +126,9 @@ class EditorUiMixin:
         ttk.Label(frame, textvariable=self.level_file_status_var, anchor="w").grid(row=0, column=15, sticky="w", pady=1)
         ttk.Button(frame, text="Color Tool", command=self.open_color_replace_tool, width=10).grid(row=0, column=16, padx=(8, 0), pady=1, sticky="e")
         ttk.Button(frame, text="Diff Tool", command=self.open_difficulty_tool, width=9).grid(row=0, column=17, padx=(8, 0), pady=1, sticky="e")
-        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=18, padx=(8, 0), pady=1, sticky="e")
-        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=19, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Swap Tool", command=self.open_swap_tool, width=9).grid(row=0, column=18, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Gen Level", command=self.open_level_generator, width=10).grid(row=0, column=19, padx=(8, 0), pady=1, sticky="e")
+        ttk.Button(frame, text="Test Level", command=self.open_level_tester, width=10).grid(row=0, column=20, padx=(8, 0), pady=1, sticky="e")
 
         ttk.Label(frame, text="Mechanics").grid(row=1, column=0, padx=(0, 3), pady=(5, 1), sticky="w")
         mechanics_entry = ttk.Entry(frame, textvariable=self.mechanics_var)
