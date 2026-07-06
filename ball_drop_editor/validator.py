@@ -308,6 +308,14 @@ class LevelValidator:
                     errors.append(f"Obstacle {obstacle.get('obstacleId')} has unsupported shape type: {shape_type}.")
                     continue
                 affected_cells = self._expand_shape(obstacle.get("shape", {}), 3, 3)
+            elif obstacle_type == "Crate":
+                if obstacle.get("hp", 1) <= 0:
+                    errors.append(f"Crate {obstacle.get('obstacleId')} hp must be > 0.")
+                shape_type = obstacle.get("shape", {}).get("type", "Rect")
+                if shape_type not in GRID_OBSTACLE_SHAPE_TYPES:
+                    errors.append(f"Obstacle {obstacle.get('obstacleId')} has unsupported shape type: {shape_type}.")
+                    continue
+                affected_cells = self._expand_shape(obstacle.get("shape", {}), 3, 3)
             elif obstacle_type == "LockBar":
                 direction = obstacle.get("direction")
                 if direction not in DIRECTIONS:

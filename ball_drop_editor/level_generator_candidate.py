@@ -632,7 +632,7 @@ class DifficultyCurveCandidateMixin:
     def _ice_blocked_positions(self, level: Dict[str, Any]) -> set[Tuple[int, int]]:
         positions: set[Tuple[int, int]] = set()
         for obstacle in level.get("grid", {}).get("obstacles", []) or []:
-            if obstacle.get("type") != "IceBlock":
+            if obstacle.get("type") not in ("IceBlock", "Crate"):
                 continue
             shape = obstacle.get("shape", {}) or {}
             cells = shape.get("cells", []) or []

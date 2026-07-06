@@ -77,7 +77,7 @@ class EditorObstacleGroupMixin:
             row=2, column=3, sticky="ew", padx=(4, 0), pady=(6, 0)
         )
 
-        ice_frame = ttk.LabelFrame(frame, text="IceBlock", padding=6)
+        ice_frame = ttk.LabelFrame(frame, text="IceBlock / Crate", padding=6)
         ice_frame.grid(row=3, column=0, sticky="ew", pady=(6, 0))
         ttk.Label(ice_frame, text="HP").pack(side="left")
         ttk.Spinbox(ice_frame, from_=1, to=999, textvariable=self.obstacle_hp_var, width=7).pack(side="left", padx=(6, 0))
@@ -412,7 +412,7 @@ class EditorObstacleGroupMixin:
             shape = obstacle.get("shape", {}) or {}
             origin = shape.get("origin", {}) or {}
             origin_text = f"{origin.get('row', 0)},{origin.get('column', 0)}"
-            if obstacle.get("type") == "IceBlock":
+            if obstacle.get("type") in ("IceBlock", "Crate"):
                 extra = f"hp {obstacle.get('hp', 1)}"
             elif obstacle.get("type") == "GlassBarrier":
                 extra = f"{obstacle.get('direction', 'Right')} x{obstacle.get('length', 3)} {obstacle.get('color', '?')}"
@@ -502,9 +502,10 @@ class EditorObstacleGroupMixin:
             width = max(cell["column"] for cell in cells) - origin_col + 1
             height = max(cell["row"] for cell in cells) - origin_row + 1
 
+        id_prefix = "crate" if obstacle_type == "Crate" else "ice"
         return {
-            "obstacleId": existing_id or short_id("ice"),
-            "type": "IceBlock",
+            "obstacleId": existing_id or short_id(id_prefix),
+            "type": obstacle_type if obstacle_type in ("IceBlock", "Crate") else "IceBlock",
             "hp": max(1, safe_int(str(self.obstacle_hp_var.get()), 1)),
             "shape": {
                 "type": shape_type,
@@ -516,7 +517,7 @@ class EditorObstacleGroupMixin:
         }
 
     def _copy_obstacle_with_new_id(self, obstacle: Dict[str, Any]) -> Dict[str, Any]:
-        id_prefix = {"LockBar": "lock", "GlassBarrier": "glass"}.get(obstacle.get("type"), "ice")
+        id_prefix = {"LockBar": "lock", "GlassBarrier": "glass", "Crate": "crate"}.get(obstacle.get("type"), "ice")
         copied = {
             "obstacleId": short_id(id_prefix),
             "type": obstacle.get("type"),
@@ -528,7 +529,7 @@ class EditorObstacleGroupMixin:
                 "cells": [dict(cell) for cell in obstacle.get("shape", {}).get("cells", [])],
             },
         }
-        if obstacle.get("type") == "IceBlock":
+        if obstacle.get("type") in ("IceBlock", "Crate"):
             copied["hp"] = obstacle.get("hp", 1)
         if obstacle.get("type") in ("LockBar", "GlassBarrier"):
             copied["direction"] = obstacle.get("direction", "Right")
@@ -744,7 +745,7 @@ class EditorObstacleGroupMixin:
         labels = []
         for index in self._obstacle_indexes_at(row, col):
             obstacle = self._grid_obstacles()[index]
-            prefix = {"LockBar": "L", "GlassBarrier": "B"}.get(obstacle.get("type"), "I")
+            prefix = {"LockBar": "L", "GlassBarrier": "B", "Crate": "C"}.get(obstacle.get("type"), "I")
             labels.append(prefix + str(index + 1))
         for index in self._group_indexes_at(row, col):
             labels.append("G" + str(index + 1))

@@ -101,6 +101,15 @@ class IceBlockState:
 
 
 @dataclass
+class CrateState:
+    cells: Tuple[Tuple[int, int], ...]
+    hp: int
+
+    def key(self) -> Tuple[Any, ...]:
+        return self.cells, self.hp
+
+
+@dataclass
 class GameState:
     rows: int
     cols: int
@@ -109,6 +118,7 @@ class GameState:
     base_obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     obstacle_blocked: Tuple[Tuple[bool, ...], ...] = field(default_factory=tuple)
     ice_blocks: List[IceBlockState] = field(default_factory=list)
+    crates: List[CrateState] = field(default_factory=list)
     lock_bars: List[LockBarState] = field(default_factory=list)
     connected_groups: Tuple[Tuple[str, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
@@ -167,6 +177,10 @@ class GameState:
                 IceBlockState(cells=ice_block.cells, hp=ice_block.hp)
                 for ice_block in self.ice_blocks
             ],
+            crates=[
+                CrateState(cells=crate.cells, hp=crate.hp)
+                for crate in self.crates
+            ],
             lock_bars=[
                 LockBarState(
                     cells=lock_bar.cells,
@@ -194,6 +208,7 @@ class GameState:
             tuple(self.conveyor),
             tuple(self.hopper),
             tuple(ice_block.key() for ice_block in self.ice_blocks),
+            tuple(crate.key() for crate in self.crates),
             tuple(lock_bar.key() for lock_bar in self.lock_bars),
             self.lost,
         )
@@ -258,6 +273,7 @@ class BallDropSimulator:
 
         obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
         ice_blocks: List[IceBlockState] = []
+        crates: List[CrateState] = []
         lock_bars: List[LockBarState] = []
         for obstacle in grid.get("obstacles", []) or []:
             obstacle_type = obstacle.get("type")
@@ -270,6 +286,15 @@ class BallDropSimulator:
                 hp = max(1, int(obstacle.get("hp", 1) or 1))
                 if obstacle_cells:
                     ice_blocks.append(IceBlockState(cells=obstacle_cells, hp=hp))
+            elif obstacle_type == "Crate":
+                obstacle_cells = tuple(
+                    (row, col)
+                    for row, col in self._expand_obstacle_cells(obstacle)
+                    if 0 <= row < rows and 0 <= col < cols
+                )
+                hp = max(1, int(obstacle.get("hp", 1) or 1))
+                if obstacle_cells:
+                    crates.append(CrateState(cells=obstacle_cells, hp=hp))
             elif obstacle_type == "LockBar":
                 lock_cells = self._expand_lockbar_cells(obstacle)
                 if lock_cells:
@@ -288,6 +313,7 @@ class BallDropSimulator:
             base_obstacle_blocked=base_obstacle_blocked,
             obstacle_blocked=base_obstacle_blocked,
             ice_blocks=ice_blocks,
+            crates=crates,
             lock_bars=lock_bars,
             connected_groups=connected_groups,
         )
@@ -478,6 +504,7 @@ class BallDropSimulator:
         state.clicks.append(ClickAction(row, col, shooter.color))
         group_members = self._connected_group_member_indexes(state, shooter)
         released_balls = 0
+        removed_positions: List[Tuple[int, int]] = []
         if group_members:
             ordered_members = [index] + [member_index for member_index in group_members if member_index != index]
             for member_index in ordered_members:
@@ -485,13 +512,17 @@ class BallDropSimulator:
                 if member.type == "Shooter" and member.shooter:
                     released_balls += member.shooter.capacity
                     state.hopper.extend([member.shooter.color] * member.shooter.capacity)
+                    removed_positions.append(divmod(member_index, state.cols))
                     state.cells[member_index] = CellState("Empty")
         else:
             released_balls = shooter.capacity
             state.hopper.extend([shooter.color] * shooter.capacity)
+            removed_positions.append((row, col))
             state.cells[index] = CellState("Empty")
         # Ice progress is awarded when a cleared shooter releases its balls.
         self.damage_ice(state, released_balls)
+        # Crate HP drops per removed shooter that is orthogonally adjacent to it (picked onto the launcher pad).
+        self.damage_adjacent_crates(state, removed_positions)
         self.refresh_obstacle_blocking(state)
         self.settle_tunnels(state)
         self.refresh_obstacle_blocking(state)
@@ -536,6 +567,12 @@ class BallDropSimulator:
             if ice_block.hp <= 0:
                 continue
             for row, col in ice_block.cells:
+                if 0 <= row < state.rows and 0 <= col < state.cols:
+                    blocked[row][col] = True
+        for crate in state.crates:
+            if crate.hp <= 0:
+                continue
+            for row, col in crate.cells:
                 if 0 <= row < state.rows and 0 <= col < state.cols:
                     blocked[row][col] = True
         for lock_bar in state.lock_bars:
@@ -669,6 +706,23 @@ class BallDropSimulator:
                 ice_block.hp = max(0, ice_block.hp - amount)
         self.refresh_obstacle_blocking(state)
 
+    def damage_adjacent_crates(self, state: GameState, removed_positions: List[Tuple[int, int]]) -> None:
+        if not removed_positions or not state.crates:
+            return
+        for crate in state.crates:
+            if crate.hp <= 0:
+                continue
+            crate_cells = set(crate.cells)
+            hits = 0
+            for row, col in removed_positions:
+                for neighbor_row, neighbor_col in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
+                    if (neighbor_row, neighbor_col) in crate_cells:
+                        hits += 1
+                        break
+            if hits:
+                crate.hp = max(0, crate.hp - hits)
+        self.refresh_obstacle_blocking(state)
+
     def decrement_adjacent_tray_ice(self, state: GameState, gate_index: int) -> None:
         front_trays = self._front_tray_refs(state)
         receiving_index = next(
@@ -754,7 +808,7 @@ class BallDropSimulator:
         origin_row = int(origin.get("row", 0) or 0)
         origin_col = int(origin.get("column", 0) or 0)
         shape_type = shape.get("type", "Rect")
-        default_size = 3 if obstacle.get("type") == "IceBlock" else 1
+        default_size = 3 if obstacle.get("type") in ("IceBlock", "Crate") else 1
         if shape_type == "CustomCells":
             return [
                 (int(cell.get("row", 0) or 0), int(cell.get("column", 0) or 0))
