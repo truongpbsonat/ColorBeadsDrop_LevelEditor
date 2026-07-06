@@ -36,6 +36,8 @@ class LevelValidator:
         color_capacity = defaultdict(int)
         blocked = [[False for _ in range(max(1, cols))] for _ in range(max(1, rows))]
         has_initial_active_shooter = False
+        key_count = 0
+        lock_count = 0
 
         for cell in grid.get("cells", []):
             r, c = cell.get("row"), cell.get("column")
@@ -78,6 +80,7 @@ class LevelValidator:
                 self._validate_fixed_shooter_capacity(shooter, sid, f"at ({r},{c})", warnings)
                 color_capacity[color] += self._effective_capacity(shooter)
                 self._validate_modifiers(shooter, sid, errors)
+                key_count += sum(1 for m in shooter.get("modifiers", []) if m.get("type") == "Key")
 
             if etype == "Tunnel":
                 direction = entity.get("outputDirection")
@@ -109,6 +112,7 @@ class LevelValidator:
                     self._validate_fixed_shooter_capacity(shooter, sid, f"in tunnel {entity.get('entityId')}", warnings)
                     color_capacity[color] += self._effective_capacity(shooter)
                     self._validate_modifiers(shooter, sid, errors)
+                    key_count += sum(1 for m in shooter.get("modifiers", []) if m.get("type") == "Key")
 
         self._validate_obstacles(grid, blocked, errors)
         self._validate_shooter_groups(grid, shooter_ids, errors, warnings)
@@ -156,6 +160,7 @@ class LevelValidator:
                         errors.append(f"Tray {tray.get('trayId')} layer requiredCount phải > 0.")
                     color_need[color] += max(0, required)
                 self._validate_tray_modifiers(tray, errors)
+                lock_count += sum(1 for m in tray.get("modifiers", []) if m.get("type") == "Lock")
 
         for color in sorted(set(color_need) | set(color_capacity)):
             if color not in BALL_COLORS or color == "None":
@@ -186,6 +191,12 @@ class LevelValidator:
 
         if not has_initial_active_shooter:
             warnings.append("No shooter active initially.")
+
+        if key_count != lock_count:
+            errors.append(
+                f"Số Key ({key_count}) và Lock ({lock_count}) không khớp. "
+                f"Mỗi Key shooter cần đúng 1 Lock tray tương ứng."
+            )
 
         errors.extend(self.validate_obstacle_rules(level))
         self._validate_mechanics(level, errors, warnings)
