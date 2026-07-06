@@ -538,6 +538,18 @@ class EditorFileActionsMixin:
             ),
         )
 
+    def open_swap_tool(self):
+        from .swap_tool import open_swap_tool
+
+        return self._open_or_focus_tool_window(
+            "_swap_tool_window",
+            lambda: open_swap_tool(
+                self,
+                self.level_folder,
+                self.on_difficulty_tool_changed,
+            ),
+        )
+
     def _open_or_focus_tool_window(
         self,
         attribute_name: str,
