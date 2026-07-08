@@ -394,6 +394,8 @@ def detect_mechanics(level: Dict[str, Any]) -> List[str]:
         obstacle_type = obstacle.get("type")
         if obstacle_type == "IceBlock":
             found.add("IceBlock")
+        elif obstacle_type == "Crate":
+            found.add("Crate")
         elif obstacle_type == "LockBar":
             found.add("LockBar")
         elif obstacle_type == "GlassBarrier":
@@ -647,11 +649,11 @@ def _normalize_obstacle(obstacle: Dict[str, Any]) -> Dict[str, Any]:
         "type": obstacle_type,
         "shape": _normalize_obstacle_shape(
             obstacle.get("shape", {}),
-            default_width=3 if obstacle_type == "IceBlock" else 1,
-            default_height=3 if obstacle_type == "IceBlock" else 1,
+            default_width=3 if obstacle_type in ("IceBlock", "Crate") else 1,
+            default_height=3 if obstacle_type in ("IceBlock", "Crate") else 1,
         ),
     }
-    if normalized["type"] == "IceBlock":
+    if normalized["type"] in ("IceBlock", "Crate"):
         normalized["hp"] = safe_int(str(obstacle.get("hp", 1)), 1)
     elif normalized["type"] == "LockBar":
         normalized["direction"] = _enum_name(obstacle.get("direction"), DIRECTIONS, "Right")

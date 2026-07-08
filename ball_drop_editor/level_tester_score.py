@@ -242,6 +242,16 @@ class SolverScoreAdapter:
             )
             proximity = 1.0 if distance <= 2 else 0.4
             pressure += (0.12 + delay * 0.38) * proximity
+        for crate in state.crates:
+            if crate.hp <= 0:
+                continue
+            delay = min(1.0, crate.hp / max(1, remaining_balls))
+            distance = min(
+                (abs(rr - row) + abs(cc - col) for rr, cc in crate.cells),
+                default=state.rows + state.cols,
+            )
+            proximity = 1.0 if distance <= 2 else 0.4
+            pressure += (0.12 + delay * 0.38) * proximity
         front_trays = [
             (gate_index, gate[0])
             for gate_index, gate in enumerate(state.gates)

@@ -39,7 +39,7 @@ SHOOTER_MODIFIER_TYPES = ["Ice", "Hidden", "Special", "Hammer", "Arrow", "Shutte
 SHOOTER_FIXED_CAPACITY = 9
 TRAY_MODIFIER_TYPES = ["Ice", "RemoteConnected", "Hidden", "Lock"]
 TRAY_ICE_DEFAULT_HP = 2
-GRID_OBSTACLE_TYPES = ["IceBlock", "LockBar", "GlassBarrier"]
+GRID_OBSTACLE_TYPES = ["IceBlock", "Crate", "LockBar", "GlassBarrier"]
 GLASS_BARRIER_DEFAULT_LENGTH = 3
 GRID_OBSTACLE_SHAPE_TYPES = ["Rect", "CustomCells", "Plus", "LineHorizontal", "LineVertical"]
 SHOOTER_GROUP_TYPES = ["Connected", "Chain", "Pair"]
@@ -76,6 +76,7 @@ MECHANIC_IDS = [
     "LockBar",
     "ConnectedShooter",
     "IceBlock",
+    "Crate",
     "SpecialShooter",
     "GlassBarrier",
     "ConnectedTray",

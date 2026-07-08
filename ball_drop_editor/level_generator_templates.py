@@ -50,7 +50,7 @@ def count_generator_devices(level: Dict[str, Any]) -> Dict[str, int]:
 
     for obstacle in grid.get("obstacles", []) or []:
         obstacle_type = obstacle.get("type")
-        if obstacle_type in {"IceBlock", "LockBar"}:
+        if obstacle_type in {"IceBlock", "Crate", "LockBar"}:
             counts[obstacle_type] += 1
 
     counts["ConnectedGroup"] = sum(
