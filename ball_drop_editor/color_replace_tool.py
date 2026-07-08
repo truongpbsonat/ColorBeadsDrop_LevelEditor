@@ -106,7 +106,7 @@ def swap_level_colors(level: Dict[str, Any], color_a: str, color_b: str) -> int:
 
 def load_level_color_summary(path: str) -> LevelColorSummary:
     try:
-        with open(path, "r", encoding="utf-8") as file:
+        with open(path, "r", encoding="utf-8-sig") as file:
             level = json.load(file)
         if not isinstance(level, dict):
             return LevelColorSummary(path=path, level_id=_level_id_from_path(path), error="Root JSON is not an object.")
@@ -673,7 +673,7 @@ class LevelColorReplaceTool(tk.Toplevel):
         errors: List[str] = []
         for path in target_paths:
             try:
-                with open(path, "r", encoding="utf-8") as file:
+                with open(path, "r", encoding="utf-8-sig") as file:
                     level = json.load(file)
                 if not isinstance(level, dict):
                     errors.append(f"{os.path.basename(path)}: root JSON is not an object")

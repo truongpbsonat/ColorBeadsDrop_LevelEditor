@@ -31,9 +31,31 @@ class ShooterState:
     capacity: int
     shooter_id: str = ""
     ice_hp: int = 0
+    # Arrow modifier: the shooter may only leave its own cell toward this
+    # direction (the other 3 sides act like walls); it still routes to the top
+    # from there. Empty string means a normal upward shooter.
+    arrow_direction: str = ""
+    # Shutter modifier: shutter shooters flip open/closed each time another
+    # shooter is fired and are only clickable while open.
+    is_shutter: bool = False
+    shutter_open: bool = True
+    # Key modifier: firing this shooter unlocks one Lock tray.
+    is_key: bool = False
+    # Hammer modifier: firing this shooter breaks every same-color GlassBarrier.
+    hammer_color: str = ""
 
-    def key(self) -> Tuple[str, int, str, int]:
-        return self.color, self.capacity, self.shooter_id, self.ice_hp
+    def key(self) -> Tuple[Any, ...]:
+        return (
+            self.color,
+            self.capacity,
+            self.shooter_id,
+            self.ice_hp,
+            self.arrow_direction,
+            self.is_shutter,
+            self.shutter_open,
+            self.is_key,
+            self.hammer_color,
+        )
 
 
 @dataclass
@@ -63,10 +85,17 @@ class CellState:
 class TrayState:
     layers: List[List[Any]]
     ice_hp: int = 0
+    # Lock modifier: a locked tray accepts no balls until a Key shooter unlocks it.
+    locked: bool = False
+    # RemoteConnected modifier: a connected tray only accepts balls when its
+    # partner (same connection_id) is also at the front of its gate.
+    connection_id: str = ""
 
     def key(self) -> Tuple[Any, ...]:
         return (
             self.ice_hp,
+            self.locked,
+            self.connection_id,
             tuple(tuple(layer) for layer in self.layers),
         )
 
@@ -110,6 +139,16 @@ class CrateState:
 
 
 @dataclass
+class GlassBarrierState:
+    cells: Tuple[Tuple[int, int], ...]
+    color: str
+    active: bool = True
+
+    def key(self) -> Tuple[Any, ...]:
+        return self.cells, self.color, self.active
+
+
+@dataclass
 class GameState:
     rows: int
     cols: int
@@ -120,6 +159,7 @@ class GameState:
     ice_blocks: List[IceBlockState] = field(default_factory=list)
     crates: List[CrateState] = field(default_factory=list)
     lock_bars: List[LockBarState] = field(default_factory=list)
+    glass_barriers: List[GlassBarrierState] = field(default_factory=list)
     connected_groups: Tuple[Tuple[str, ...], ...] = field(default_factory=tuple)
     conveyor: List[Optional[str]] = field(default_factory=lambda: [None] * CONVEYOR_SLOTS)
     hopper: List[str] = field(default_factory=list)
@@ -130,23 +170,8 @@ class GameState:
     def clone(self) -> "GameState":
         cells = []
         for cell in self.cells:
-            shooter = None
-            if cell.shooter is not None:
-                shooter = ShooterState(
-                    color=cell.shooter.color,
-                    capacity=cell.shooter.capacity,
-                    shooter_id=cell.shooter.shooter_id,
-                    ice_hp=cell.shooter.ice_hp,
-                )
-            queue = [
-                ShooterState(
-                    color=queued.color,
-                    capacity=queued.capacity,
-                    shooter_id=queued.shooter_id,
-                    ice_hp=queued.ice_hp,
-                )
-                for queued in cell.queue
-            ]
+            shooter = _clone_shooter(cell.shooter)
+            queue = [_clone_shooter(queued) for queued in cell.queue]
             cells.append(
                 CellState(
                     type=cell.type,
@@ -161,6 +186,8 @@ class GameState:
                 TrayState(
                     layers=[list(layer) for layer in tray.layers],
                     ice_hp=tray.ice_hp,
+                    locked=tray.locked,
+                    connection_id=tray.connection_id,
                 )
                 for tray in gate
             ]
@@ -189,6 +216,14 @@ class GameState:
                 )
                 for lock_bar in self.lock_bars
             ],
+            glass_barriers=[
+                GlassBarrierState(
+                    cells=barrier.cells,
+                    color=barrier.color,
+                    active=barrier.active,
+                )
+                for barrier in self.glass_barriers
+            ],
             connected_groups=self.connected_groups,
             conveyor=list(self.conveyor),
             hopper=list(self.hopper),
@@ -210,6 +245,7 @@ class GameState:
             tuple(ice_block.key() for ice_block in self.ice_blocks),
             tuple(crate.key() for crate in self.crates),
             tuple(lock_bar.key() for lock_bar in self.lock_bars),
+            tuple(barrier.key() for barrier in self.glass_barriers),
             self.lost,
         )
 
@@ -229,13 +265,31 @@ class SolveResult:
     message: str = ""
 
 
+def _clone_shooter(shooter: Optional[ShooterState]) -> Optional[ShooterState]:
+    if shooter is None:
+        return None
+    return ShooterState(
+        color=shooter.color,
+        capacity=shooter.capacity,
+        shooter_id=shooter.shooter_id,
+        ice_hp=shooter.ice_hp,
+        arrow_direction=shooter.arrow_direction,
+        is_shutter=shooter.is_shutter,
+        shutter_open=shooter.shutter_open,
+        is_key=shooter.is_key,
+        hammer_color=shooter.hammer_color,
+    )
+
+
 class BallDropSimulator:
     def __init__(self, data: Dict[str, Any]):
         self.level = normalize_runtime_level(copy.deepcopy(data))
 
     @classmethod
     def from_file(cls, path: str) -> "BallDropSimulator":
-        with open(path, "r", encoding="utf-8") as fh:
+        # utf-8-sig transparently strips a UTF-8 BOM (some level files are exported
+        # with one) while still reading plain UTF-8 correctly.
+        with open(path, "r", encoding="utf-8-sig") as fh:
             return cls(json.load(fh))
 
     def initial_state(self) -> GameState:
@@ -268,13 +322,22 @@ class BallDropSimulator:
                     if color and remaining > 0:
                         layers.append([color, remaining])
                 if layers:
-                    gate.append(TrayState(layers=layers, ice_hp=self._parse_tray_ice(tray)))
+                    locked, connection_id = self._parse_tray_lock_connection(tray)
+                    gate.append(
+                        TrayState(
+                            layers=layers,
+                            ice_hp=self._parse_tray_ice(tray),
+                            locked=locked,
+                            connection_id=connection_id,
+                        )
+                    )
             gates.append(gate)
 
         obstacle_blocked = [[False for _ in range(cols)] for _ in range(rows)]
         ice_blocks: List[IceBlockState] = []
         crates: List[CrateState] = []
         lock_bars: List[LockBarState] = []
+        glass_barriers: List[GlassBarrierState] = []
         for obstacle in grid.get("obstacles", []) or []:
             obstacle_type = obstacle.get("type")
             if obstacle_type == "IceBlock":
@@ -301,6 +364,19 @@ class BallDropSimulator:
                     head = lock_cells[0]
                     trigger = self._offset_unbounded(head[0], head[1], self._opposite_direction(obstacle.get("direction", "Right")))
                     lock_bars.append(LockBarState(cells=tuple(lock_cells), trigger=trigger))
+            elif obstacle_type == "GlassBarrier":
+                barrier_cells = tuple(
+                    (row, col)
+                    for row, col in self._expand_obstacle_cells(obstacle)
+                    if 0 <= row < rows and 0 <= col < cols
+                )
+                if barrier_cells:
+                    glass_barriers.append(
+                        GlassBarrierState(
+                            cells=barrier_cells,
+                            color=str(obstacle.get("color", "") or ""),
+                        )
+                    )
 
         connected_groups = self._parse_connected_groups(grid)
         base_obstacle_blocked = tuple(tuple(row) for row in obstacle_blocked)
@@ -315,10 +391,12 @@ class BallDropSimulator:
             ice_blocks=ice_blocks,
             crates=crates,
             lock_bars=lock_bars,
+            glass_barriers=glass_barriers,
             connected_groups=connected_groups,
         )
         self.settle_tunnels(state)
         self.refresh_obstacle_blocking(state)
+        self._open_ready_connections(state)
         return state
 
     def capacity_balance_errors(self) -> List[str]:
@@ -373,16 +451,36 @@ class BallDropSimulator:
     def _parse_shooter(self, shooter: Dict[str, Any]) -> ShooterState:
         ice_hp = 0
         multiplier = 1
+        arrow_direction = ""
+        is_shutter = False
+        shutter_open = True
+        is_key = False
+        hammer_color = ""
         for modifier in shooter.get("modifiers", []) or []:
-            if modifier.get("type") == "Ice":
+            modifier_type = modifier.get("type")
+            if modifier_type == "Ice":
                 ice_hp = max(ice_hp, int(modifier.get("hp", 1)))
-            elif modifier.get("type") == "Special":
+            elif modifier_type == "Special":
                 multiplier = 2
+            elif modifier_type == "Arrow":
+                arrow_direction = str(modifier.get("direction", "") or "")
+            elif modifier_type == "Shutter":
+                is_shutter = True
+                shutter_open = bool(modifier.get("isOpen", True))
+            elif modifier_type == "Key":
+                is_key = True
+            elif modifier_type == "Hammer":
+                hammer_color = str(modifier.get("color", "") or "")
         return ShooterState(
             color=str(shooter.get("colorId", "None")),
             capacity=max(0, int(shooter.get("capacity", 0))) * multiplier,
             shooter_id=str(shooter.get("shooterId", "")),
             ice_hp=ice_hp,
+            arrow_direction=arrow_direction,
+            is_shutter=is_shutter,
+            shutter_open=shutter_open,
+            is_key=is_key,
+            hammer_color=hammer_color,
         )
 
     def _parse_tray_ice(self, tray: Dict[str, Any]) -> int:
@@ -391,6 +489,17 @@ class BallDropSimulator:
             if modifier.get("type") == "Ice":
                 ice_hp = max(ice_hp, int(modifier.get("hp", TRAY_ICE_DEFAULT_HP)))
         return ice_hp
+
+    def _parse_tray_lock_connection(self, tray: Dict[str, Any]) -> Tuple[bool, str]:
+        locked = False
+        connection_id = ""
+        for modifier in tray.get("modifiers", []) or []:
+            modifier_type = modifier.get("type")
+            if modifier_type == "Lock":
+                locked = True
+            elif modifier_type == "RemoteConnected":
+                connection_id = str(modifier.get("connectionId", "") or "")
+        return locked, connection_id
 
     def _parse_connected_groups(self, grid: Dict[str, Any]) -> Tuple[Tuple[str, ...], ...]:
         groups = []
@@ -422,18 +531,31 @@ class BallDropSimulator:
         )
         return has_available_balls and all(not gate for gate in state.gates)
 
+    def _can_launch(self, shooter: ShooterState) -> bool:
+        """Whether a shooter is in a state that lets it fire at all (ignoring path)."""
+        if shooter.capacity <= 0 or shooter.ice_hp > 0:
+            return False
+        if shooter.is_shutter and not shooter.shutter_open:
+            return False
+        return True
+
+    def _exit_direction(self, shooter: ShooterState) -> str:
+        # Empty string => a normal upward shooter that may route in any direction.
+        # A non-empty value => an Arrow shooter locked to that first-step direction.
+        return shooter.arrow_direction
+
     def active_shooters(self, state: GameState) -> List[Tuple[int, int, ShooterState]]:
         active = []
         active_ids = set()
         for index, cell in enumerate(state.cells):
             if cell.type != "Shooter" or not cell.shooter:
                 continue
-            if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
+            if not self._can_launch(cell.shooter):
                 continue
             row, col = divmod(index, state.cols)
             if state.obstacle_blocked and state.obstacle_blocked[row][col]:
                 continue
-            if self.has_path_to_exit(state, row, col):
+            if self.has_path_to_exit(state, row, col, self._exit_direction(cell.shooter)):
                 active.append((row, col, cell.shooter))
                 if cell.shooter.shooter_id:
                     active_ids.add(cell.shooter.shooter_id)
@@ -447,7 +569,7 @@ class BallDropSimulator:
                     continue
                 if cell.shooter.shooter_id not in group_ids:
                     continue
-                if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
+                if not self._can_launch(cell.shooter):
                     continue
                 row, col = divmod(index, state.cols)
                 if state.obstacle_blocked and state.obstacle_blocked[row][col]:
@@ -457,29 +579,48 @@ class BallDropSimulator:
                     active.append(action)
         return active
 
-    def has_path_to_exit(self, state: GameState, start_row: int, start_col: int) -> bool:
-        if start_row == 0:
+    def has_path_to_exit(
+        self,
+        state: GameState,
+        start_row: int,
+        start_col: int,
+        arrow_dir: str = "",
+    ) -> bool:
+        # The exit is always the top edge of the grid (row 0). A normal shooter
+        # (arrow_dir == "") can leave its cell in any direction; an Arrow shooter
+        # may only leave its own cell toward arrow_dir (the other 3 sides act like
+        # walls, even when arrow_dir is "Up"), then routes to the top normally.
+        arrow = bool(arrow_dir)
+        if start_row == 0 and not arrow:
             return True
-        queue = [(start_row, start_col)]
+        queue: List[Tuple[int, int, bool]] = [(start_row, start_col, True)]
         visited = {(start_row, start_col)}
         while queue:
-            row, col = queue.pop(0)
-            if row == 0:
+            row, col, is_start = queue.pop(0)
+            if row == 0 and not is_start:
                 return True
-            for next_row, next_col in (
-                (row - 1, col),
-                (row + 1, col),
-                (row, col - 1),
-                (row, col + 1),
-            ):
+            if is_start and arrow:
+                forced = self._offset(row, col, arrow_dir)
+                neighbors = [forced] if forced is not None else []
+            else:
+                neighbors = [
+                    (row - 1, col),
+                    (row + 1, col),
+                    (row, col - 1),
+                    (row, col + 1),
+                ]
+            for step in neighbors:
+                if step is None:
+                    continue
+                next_row, next_col = step
                 if not (0 <= next_row < state.rows and 0 <= next_col < state.cols):
                     continue
                 if (next_row, next_col) in visited:
                     continue
-                if (next_row, next_col) != (start_row, start_col) and not self.is_passable(state, next_row, next_col):
+                if not self.is_passable(state, next_row, next_col):
                     continue
                 visited.add((next_row, next_col))
-                queue.append((next_row, next_col))
+                queue.append((next_row, next_col, False))
         return False
 
     def is_passable(self, state: GameState, row: int, col: int) -> bool:
@@ -494,17 +635,18 @@ class BallDropSimulator:
         if cell.type != "Shooter" or not cell.shooter:
             return False
         shooter = cell.shooter
-        if shooter.capacity <= 0 or shooter.ice_hp > 0:
+        if not self._can_launch(shooter):
             return False
         if state.obstacle_blocked and state.obstacle_blocked[row][col]:
             return False
-        if not self.has_path_to_exit(state, row, col):
+        if not self.has_path_to_exit(state, row, col, self._exit_direction(shooter)):
             if not self._can_group_member_click(state, shooter):
                 return False
         state.clicks.append(ClickAction(row, col, shooter.color))
         group_members = self._connected_group_member_indexes(state, shooter)
         released_balls = 0
         removed_positions: List[Tuple[int, int]] = []
+        fired_shooters: List[ShooterState] = []
         if group_members:
             ordered_members = [index] + [member_index for member_index in group_members if member_index != index]
             for member_index in ordered_members:
@@ -513,16 +655,25 @@ class BallDropSimulator:
                     released_balls += member.shooter.capacity
                     state.hopper.extend([member.shooter.color] * member.shooter.capacity)
                     removed_positions.append(divmod(member_index, state.cols))
+                    fired_shooters.append(member.shooter)
                     state.cells[member_index] = CellState("Empty")
         else:
             released_balls = shooter.capacity
             state.hopper.extend([shooter.color] * shooter.capacity)
             removed_positions.append((row, col))
+            fired_shooters.append(shooter)
             state.cells[index] = CellState("Empty")
         # Ice progress is awarded when a cleared shooter releases its balls.
         self.damage_ice(state, released_balls)
         # Crate HP drops per removed shooter that is orthogonally adjacent to it (picked onto the launcher pad).
         self.damage_adjacent_crates(state, removed_positions)
+        # A fired Hammer shooter shatters every GlassBarrier of the same color.
+        self._break_glass_barriers(state, {s.hammer_color for s in fired_shooters if s.hammer_color})
+        # Each fired Key shooter unlocks one Lock tray (front row first, right-to-left).
+        for _ in range(sum(1 for s in fired_shooters if s.is_key)):
+            self._unlock_next_locked_tray(state)
+        # Firing any shooter flips every remaining shutter shooter's open/closed state.
+        self._toggle_shutters(state)
         self.refresh_obstacle_blocking(state)
         self.settle_tunnels(state)
         self.refresh_obstacle_blocking(state)
@@ -581,6 +732,12 @@ class BallDropSimulator:
             for row, col in lock_bar.cells:
                 if 0 <= row < state.rows and 0 <= col < state.cols:
                     blocked[row][col] = True
+        for barrier in state.glass_barriers:
+            if not barrier.active:
+                continue
+            for row, col in barrier.cells:
+                if 0 <= row < state.rows and 0 <= col < state.cols:
+                    blocked[row][col] = True
         state.obstacle_blocked = tuple(tuple(row) for row in blocked)
 
     def refresh_lock_bars(self, state: GameState) -> None:
@@ -598,12 +755,12 @@ class BallDropSimulator:
                 continue
             if cell.shooter.shooter_id not in group_ids:
                 continue
-            if cell.shooter.capacity <= 0 or cell.shooter.ice_hp > 0:
+            if not self._can_launch(cell.shooter):
                 continue
             row, col = divmod(index, state.cols)
             if state.obstacle_blocked and state.obstacle_blocked[row][col]:
                 continue
-            if self.has_path_to_exit(state, row, col):
+            if self.has_path_to_exit(state, row, col, self._exit_direction(cell.shooter)):
                 return True
         return False
 
@@ -635,6 +792,11 @@ class BallDropSimulator:
             state.conveyor[index] = state.conveyor[index - 1]
         state.conveyor[0] = last
 
+        # Unlock any RemoteConnected pair whose partners are both at the front now,
+        # before the gates consume this step (so a pair that both complete this
+        # step still counts as having met).
+        self._open_ready_connections(state)
+
         consumed_slots: set[int] = set()
         for gate_index in GATE_PRIORITY:
             if gate_index >= len(state.gates) or not state.gates[gate_index]:
@@ -664,9 +826,43 @@ class BallDropSimulator:
 
     def _gate_needs_color(self, state: GameState, gate_index: int, color: str) -> bool:
         tray = self._front_tray(state, gate_index)
-        if not tray or tray.ice_hp > 0 or not tray.layers or not tray.layers[0]:
+        if not tray or not tray.layers or not tray.layers[0]:
+            return False
+        if self._front_tray_blocked(state, gate_index):
             return False
         return tray.layers[0][0] == color
+
+    def _front_tray_blocked(self, state: GameState, gate_index: int) -> bool:
+        """A front tray refuses balls while iced, still Lock-ed, or waiting for its
+        RemoteConnected partner to also reach the front of its gate."""
+        tray = self._front_tray(state, gate_index)
+        if not tray:
+            return True
+        if tray.ice_hp > 0 or tray.locked:
+            return True
+        if tray.connection_id and not self._connection_ready(state, tray.connection_id):
+            return True
+        return False
+
+    def _connection_ready(self, state: GameState, connection_id: str) -> bool:
+        matched_gates = 0
+        for gate in state.gates:
+            if gate and gate[0].connection_id == connection_id:
+                matched_gates += 1
+        return matched_gates >= 2
+
+    def _open_ready_connections(self, state: GameState) -> None:
+        """A RemoteConnected pair unlocks the moment both partners are at the front
+        of their gates. Unlocking is permanent: clear the connection so the trays
+        keep accepting balls even after one partner completes first."""
+        fronts_by_connection: Dict[str, List[TrayState]] = {}
+        for gate in state.gates:
+            if gate and gate[0].connection_id:
+                fronts_by_connection.setdefault(gate[0].connection_id, []).append(gate[0])
+        for trays in fronts_by_connection.values():
+            if len(trays) >= 2:
+                for tray in trays:
+                    tray.connection_id = ""
 
     def _earlier_gate_needs_color(self, state: GameState, gate_index: int, color: str) -> bool:
         for earlier_gate_index in GATE_PRIORITY:
@@ -723,6 +919,36 @@ class BallDropSimulator:
                 crate.hp = max(0, crate.hp - hits)
         self.refresh_obstacle_blocking(state)
 
+    def _break_glass_barriers(self, state: GameState, colors: set) -> None:
+        if not colors:
+            return
+        for barrier in state.glass_barriers:
+            if barrier.active and barrier.color in colors:
+                barrier.active = False
+
+    def _unlock_next_locked_tray(self, state: GameState) -> bool:
+        """Unlock the highest-priority Lock tray: front row first (smallest queue
+        index), and within a row from the right-most gate to the left-most."""
+        best: Optional[Tuple[int, int]] = None
+        for gate_index, gate in enumerate(state.gates):
+            for queue_index, tray in enumerate(gate):
+                if not tray.locked:
+                    continue
+                # Sort key: smaller queue index wins; ties broken by larger gate index.
+                candidate = (queue_index, -gate_index)
+                if best is None or candidate < (best[0], -best[1]):
+                    best = (queue_index, gate_index)
+        if best is None:
+            return False
+        queue_index, gate_index = best
+        state.gates[gate_index][queue_index].locked = False
+        return True
+
+    def _toggle_shutters(self, state: GameState) -> None:
+        for cell in state.cells:
+            if cell.type == "Shooter" and cell.shooter and cell.shooter.is_shutter:
+                cell.shooter.shutter_open = not cell.shooter.shutter_open
+
     def decrement_adjacent_tray_ice(self, state: GameState, gate_index: int) -> None:
         front_trays = self._front_tray_refs(state)
         receiving_index = next(
@@ -742,7 +968,7 @@ class BallDropSimulator:
         colors = []
         for gate_index in range(len(state.gates)):
             tray = self._front_tray(state, gate_index)
-            if tray and tray.ice_hp <= 0 and tray.layers and tray.layers[0]:
+            if tray and not self._front_tray_blocked(state, gate_index) and tray.layers and tray.layers[0]:
                 colors.append(tray.layers[0][0])
         return colors
 
