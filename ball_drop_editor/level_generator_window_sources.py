@@ -34,7 +34,7 @@ class LevelGeneratorWindowSourceMixin:
         if not path:
             return
 
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8-sig") as fh:
             self.template_level = json.load(fh)
         self.template_levels = [self.template_level]
         self.mode_var.set("Template Folder")
@@ -50,7 +50,7 @@ class LevelGeneratorWindowSourceMixin:
             self._load_reference_path(path)
 
     def _load_reference_path(self, path: str) -> None:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8-sig") as fh:
             level = json.load(fh)
         normalize_runtime_level(level)
         self.reference_level = copy.deepcopy(level)

@@ -156,7 +156,7 @@ def load_template_folder(folder: str) -> List[Dict[str, Any]]:
             continue
         path = os.path.join(folder, filename)
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, "r", encoding="utf-8-sig") as fh:
                 level = json.load(fh)
             level["_templatePath"] = path
             templates.append(level)
